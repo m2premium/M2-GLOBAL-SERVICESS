@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Custom brand colors for M2-GLOBAL-SERVICESS */
+  --color-m2-50: #f0f7ff;
+  --color-m2-100: #e0effe;
+  --color-m2-200: #bae0fd;
+  --color-m2-300: #7cc6fc;
+  --color-m2-400: #38a8f9;
+  --color-m2-500: #0e8dec;
+  --color-m2-600: #026fc6;
+  --color-m2-700: #0359a0;
+  --color-m2-800: #074c83;
+  --color-m2-900: #0b406e;
+  --color-m2-950: #07294a;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+

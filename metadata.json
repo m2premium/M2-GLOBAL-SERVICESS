@@ -1,0 +1,6 @@
+{
+  "name": "M2-GLOBAL-SERVICESS",
+  "description": "A beautifully animated login, registration, password recovery, and dashboard experience for M2-GLOBAL-SERVICESS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
