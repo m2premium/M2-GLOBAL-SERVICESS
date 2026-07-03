@@ -2,16 +2,41 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LogOut, ShieldAlert, Cpu, Network, TrendingUp, TrendingDown, DollarSign, 
-  Plus, Calendar, CheckCircle2, CircleDot, RefreshCw, Layers, Sparkles, Filter, ShieldCheck, Clock
+  Plus, Calendar, CheckCircle2, CircleDot, RefreshCw, Layers, Sparkles, Filter, ShieldCheck, Clock,
+  Paintbrush, Edit3, Camera, UploadCloud, Check, Fingerprint, AlertCircle, Shield, X, Info,
+  Smartphone, ArrowUpRight, Activity
 } from 'lucide-react';
 import { User, Transaction, Project } from '../types';
+import { THEMES } from './LoginScreen';
+
+const PRESET_AVATARS = [
+  { name: 'Cyber Specialist', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' },
+  { name: 'Lead Developer', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' },
+  { name: 'Principal UX Designer', url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80' },
+  { name: 'Security Strategist', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' }
+];
+
+export interface ActiveUser {
+  id: string;
+  name: string;
+  phone: string;
+  network: 'MTN' | 'Airtel' | 'Glo' | '9mobile';
+  airtimeBalance: number;
+  validationsCount: number;
+  revenueGenerated: number;
+  lastActive: string;
+  status: 'online' | 'offline';
+}
 
 interface DashboardScreenProps {
   user: User;
   onLogout: () => void;
+  onUserUpdate: (updatedUser: User) => void;
+  theme: string;
+  setTheme: (theme: string) => void;
 }
 
-export default function DashboardScreen({ user, onLogout }: DashboardScreenProps) {
+export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, setTheme }: DashboardScreenProps) {
   // Initialize sample transactions
   const [transactions, setTransactions] = useState<Transaction[]>([
     { id: 'TX-1042', title: 'Global Server Ingress Billing', date: '2026-06-30', amount: 14500.00, type: 'debit', status: 'completed', category: 'Infrastructure' },
@@ -21,13 +46,54 @@ export default function DashboardScreen({ user, onLogout }: DashboardScreenProps
     { id: 'TX-1046', title: 'Quantum Security Core Upgrade', date: '2026-06-25', amount: 31200.00, type: 'debit', status: 'pending', category: 'Security' },
   ]);
 
-  // Initialize sample projects
-  const [projects, setProjects] = useState<Project[]>([
-    { id: 'PRJ-801', name: 'UI Revolution 3.0', progress: 84, status: 'Active', teamSize: 6, budget: '$250,000', category: 'Creative' },
-    { id: 'PRJ-802', name: 'Quantum Crypto Shield', progress: 92, status: 'Active', teamSize: 9, budget: '$1.2M', category: 'Security' },
-    { id: 'PRJ-803', name: 'Neural Marketing Agent', progress: 45, status: 'Planning', teamSize: 4, budget: '$180,000', category: 'Marketing' },
-    { id: 'PRJ-804', name: 'Distributed Ledger Sync', progress: 100, status: 'Completed', teamSize: 12, budget: '$600,000', category: 'Finance' },
+  // Initialize sample active users with Nigerian details
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([
+    { id: 'USR-701', name: 'Abubakar Ibrahim', phone: '08031234567', network: 'MTN', airtimeBalance: 3500, validationsCount: 12, revenueGenerated: 6000, lastActive: '2 mins ago', status: 'online' },
+    { id: 'USR-702', name: 'Chidi Okafor', phone: '08159876543', network: 'Glo', airtimeBalance: 1200, validationsCount: 8, revenueGenerated: 4000, lastActive: 'Just now', status: 'online' },
+    { id: 'USR-703', name: 'Amina Yusuf', phone: '09023456789', network: 'Airtel', airtimeBalance: 8500, validationsCount: 24, revenueGenerated: 12000, lastActive: '5 mins ago', status: 'online' },
+    { id: 'USR-704', name: 'Olumide Balogun', phone: '08095551234', network: '9mobile', airtimeBalance: 400, validationsCount: 3, revenueGenerated: 1500, lastActive: '1 hr ago', status: 'offline' },
+    { id: 'USR-705', name: 'Florence Danjuma', phone: '08134447777', network: 'MTN', airtimeBalance: 15000, validationsCount: 45, revenueGenerated: 22500, lastActive: 'Just now', status: 'online' },
   ]);
+
+  // Settlement and Revenue States
+  const [defaultAccountNo, setDefaultAccountNo] = useState('3115711063');
+  const [defaultBankName, setDefaultBankName] = useState('First Bank');
+  const [defaultAccountName, setDefaultAccountName] = useState('MANIRU MOHAMMAD');
+  const [dailyRevenue, setDailyRevenue] = useState(48500); // in NGN
+  const [totalConvertedAirtime, setTotalConvertedAirtime] = useState(132000); // in NGN
+  const [validationFee, setValidationFee] = useState(500); // in NGN
+
+  // State to hold selected phone number for current validation
+  const [selectedPhoneForValidation, setSelectedPhoneForValidation] = useState('08031234567');
+  const [isRegisteringPhoneForVal, setIsRegisteringPhoneForVal] = useState(false);
+  const [tempRegName, setTempRegName] = useState('');
+  const [tempRegPhone, setTempRegPhone] = useState('');
+  const [tempRegNetwork, setTempRegNetwork] = useState<'MTN' | 'Airtel' | 'Glo' | '9mobile'>('MTN');
+  const [tempRegAirtime, setTempRegAirtime] = useState('1500');
+
+  // Interactive Live Credit Alerts list
+  interface CreditAlert {
+    id: string;
+    phone: string;
+    amount: number;
+    timestamp: string;
+  }
+  const [liveCreditAlerts, setLiveCreditAlerts] = useState<CreditAlert[]>([
+    { id: 'ALT-8891', phone: '08134447777', amount: 500, timestamp: '10 mins ago' },
+    { id: 'ALT-8890', phone: '09023456789', amount: 500, timestamp: '24 mins ago' },
+    { id: 'ALT-8889', phone: '08031234567', amount: 1000, timestamp: '45 mins ago' },
+  ]);
+
+  // Alert toast notification
+  const [activeAlertNotification, setActiveAlertNotification] = useState<{
+    show: boolean;
+    phone: string;
+    amount: number;
+    accountNo: string;
+    accountName: string;
+    bank: string;
+    reference: string;
+  } | null>(null);
 
   // Form states for adding a new transaction
   const [showAddTx, setShowAddTx] = useState(false);
@@ -51,6 +117,159 @@ export default function DashboardScreen({ user, onLogout }: DashboardScreenProps
     }, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  // User Profile Modal States
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileName, setProfileName] = useState(user.name);
+  const [profileCompany, setProfileCompany] = useState(user.company);
+  const [profileRole, setProfileRole] = useState(user.role || 'Senior Director');
+  const [profileDept, setProfileDept] = useState(user.department || 'Management');
+  const [profileAvatarStyle, setProfileAvatarStyle] = useState<'pixel-art' | 'bottts' | 'adventurer' | 'lorelei'>('pixel-art');
+  const [profileAvatarSeed, setProfileAvatarSeed] = useState(user.name);
+
+  // Synchronize profile details when prop user is updated
+  React.useEffect(() => {
+    setProfileName(user.name);
+    setProfileCompany(user.company);
+    setProfileRole(user.role || 'Senior Director');
+    setProfileDept(user.department || 'Management');
+    setProfileAvatarSeed(user.avatarUrl ? '' : user.name);
+  }, [user]);
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    const generatedAvatar = profileAvatarSeed 
+      ? `https://api.dicebear.com/7.x/${profileAvatarStyle}/svg?seed=${encodeURIComponent(profileAvatarSeed)}`
+      : user.avatarUrl;
+    onUserUpdate({
+      ...user,
+      name: profileName,
+      company: profileCompany,
+      role: profileRole,
+      department: profileDept,
+      avatarUrl: generatedAvatar
+    });
+    setShowProfileModal(false);
+  };
+
+  // Validation States & Simulation Handlers
+  const [activeValidationType, setActiveValidationType] = useState<'bvn' | 'nin' | 'account' | null>(null);
+  const [validationInputValue, setValidationInputValue] = useState('');
+  const [isValidationRunning, setIsValidationRunning] = useState(false);
+  const [validationProgress, setValidationProgress] = useState(0);
+  const [validationStatusMessage, setValidationStatusMessage] = useState('');
+  const [validationSuccess, setValidationSuccess] = useState<boolean | null>(null);
+  const [validationResultHash, setValidationResultHash] = useState('');
+
+  const handleOpenValidation = (type: 'bvn' | 'nin' | 'account') => {
+    setActiveValidationType(type);
+    setValidationInputValue('');
+    setIsValidationRunning(false);
+    setValidationProgress(0);
+    setValidationStatusMessage('READY FOR SECURE TRANSMISSION');
+    setValidationSuccess(null);
+    setValidationResultHash('');
+  };
+
+  const startValidationSimulation = () => {
+    if (!validationInputValue) return;
+
+    // Find the user being charged
+    const chargingUser = activeUsers.find(u => u.phone === selectedPhoneForValidation);
+    if (!chargingUser) {
+      alert("Please select or register an active phone number for airtime deduction first.");
+      return;
+    }
+    if (chargingUser.airtimeBalance < validationFee) {
+      alert(`Insufficient airtime balance on ${selectedPhoneForValidation}! Standard fee is ₦${validationFee}. Please top up or select another registered phone.`);
+      return;
+    }
+
+    setIsValidationRunning(true);
+    setValidationProgress(0);
+    setValidationSuccess(null);
+
+    const steps = [
+      { progress: 15, msg: `DEDUCTING ₦${validationFee}.00 AIRTIME FEE FROM ${selectedPhoneForValidation}...` },
+      { progress: 40, msg: `CONVERTING AIRTIME VALUE VIA M2 TELECOM LIQUIDITY GATEWAY...` },
+      { progress: 70, msg: `ROUTING CASH SETTLEMENT TO FIRST BANK ACCT: ${defaultAccountNo}...` },
+      { progress: 90, msg: `WAITING FOR CENTRAL BANK AUDITING HANDSHAKE CONFIRMATION...` },
+      { progress: 100, msg: `COMPLETED • CREDITED TO MANIRU MOHAMMAD` },
+    ];
+
+    let currentStepIdx = 0;
+    const interval = setInterval(() => {
+      if (currentStepIdx < steps.length) {
+        const currentProgress = steps[currentStepIdx].progress;
+        setValidationProgress(currentProgress);
+        setValidationStatusMessage(steps[currentStepIdx].msg);
+        
+        // At 40%, perform the state deduction
+        if (currentProgress === 40) {
+          setActiveUsers(prev => prev.map(u => {
+            if (u.phone === selectedPhoneForValidation) {
+              return {
+                ...u,
+                airtimeBalance: Math.max(0, u.airtimeBalance - validationFee),
+                validationsCount: u.validationsCount + 1,
+                revenueGenerated: u.revenueGenerated + validationFee
+              };
+            }
+            return u;
+          }));
+        }
+        
+        currentStepIdx++;
+      } else {
+        clearInterval(interval);
+        setIsValidationRunning(false);
+        // Deem valid if length matches standard formats
+        const isSuccessful = validationInputValue.trim().length >= 8;
+        setValidationSuccess(isSuccessful);
+        if (isSuccessful) {
+          const mockHash = 'M2-NODE-' + Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+          setValidationResultHash(mockHash);
+
+          // Increment daily profit and total converted airtime
+          setDailyRevenue(prev => prev + validationFee);
+          setTotalConvertedAirtime(prev => prev + validationFee);
+
+          // Add to transactions ledger
+          const newTx: Transaction = {
+            id: `TX-${Math.floor(10000 + Math.random() * 90000)}`,
+            title: `Airtime Conversion Settlement • ${selectedPhoneForValidation}`,
+            date: new Date().toISOString().split('T')[0],
+            amount: validationFee,
+            type: 'credit',
+            status: 'completed',
+            category: 'Revenue Gateway'
+          };
+          setTransactions(prev => [newTx, ...prev]);
+
+          // Add to live credit logs list
+          const alertRef = 'M2-SETTLED-' + Math.floor(100000 + Math.random() * 900000);
+          const newAlert: CreditAlert = {
+            id: alertRef,
+            phone: selectedPhoneForValidation,
+            amount: validationFee,
+            timestamp: 'Just now'
+          };
+          setLiveCreditAlerts(prev => [newAlert, ...prev]);
+
+          // Trigger Toast notification
+          setActiveAlertNotification({
+            show: true,
+            phone: selectedPhoneForValidation,
+            amount: validationFee,
+            accountNo: defaultAccountNo,
+            accountName: defaultAccountName,
+            bank: defaultBankName,
+            reference: alertRef
+          });
+        }
+      }
+    }, 700);
+  };
 
   // Compute stats based on transactions
   const totalBalance = useMemo(() => {
@@ -137,19 +356,108 @@ export default function DashboardScreen({ user, onLogout }: DashboardScreenProps
     setShowAddTx(false);
   };
 
-  // Toggle project progress for interactivity
-  const handleUpdateProgress = (projId: string) => {
-    setProjects(prev => prev.map(p => {
-      if (p.id === projId) {
-        const nextProgress = p.progress >= 100 ? 0 : Math.min(100, p.progress + 10);
+  // Register a new Nigerian active user phone for airtime deduction
+  const handleRegisterUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tempRegPhone || !tempRegName) return;
+
+    if (activeUsers.some(u => u.phone === tempRegPhone)) {
+      alert("This phone number is already registered!");
+      return;
+    }
+
+    const newUser: ActiveUser = {
+      id: `USR-${Math.floor(700 + Math.random() * 300)}`,
+      name: tempRegName,
+      phone: tempRegPhone,
+      network: tempRegNetwork,
+      airtimeBalance: parseFloat(tempRegAirtime) || 0,
+      validationsCount: 0,
+      revenueGenerated: 0,
+      lastActive: 'Just now',
+      status: 'online'
+    };
+
+    setActiveUsers(prev => [newUser, ...prev]);
+    setSelectedPhoneForValidation(tempRegPhone);
+    setTempRegName('');
+    setTempRegPhone('');
+    setTempRegAirtime('1500');
+    setIsRegisteringPhoneForVal(false);
+  };
+
+  // Simulate quick recharge of airtime for an active user
+  const handleRechargeAirtime = (phone: string, amount: number = 1000) => {
+    setActiveUsers(prev => prev.map(u => {
+      if (u.phone === phone) {
         return {
-          ...p,
-          progress: nextProgress,
-          status: nextProgress === 100 ? 'Completed' : 'Active'
+          ...u,
+          airtimeBalance: u.airtimeBalance + amount
         };
       }
-      return p;
+      return u;
     }));
+  };
+
+  // Manually convert airtime from a selected user to cash
+  const handleManualAirtimeDeduction = (phone: string, amount: number = 500) => {
+    const userToCharge = activeUsers.find(u => u.phone === phone);
+    if (!userToCharge) return;
+
+    if (userToCharge.airtimeBalance < amount) {
+      alert(`Insufficient airtime balance on ${phone}! Needs ₦${amount} to convert.`);
+      return;
+    }
+
+    // Deduct
+    setActiveUsers(prev => prev.map(u => {
+      if (u.phone === phone) {
+        return {
+          ...u,
+          airtimeBalance: Math.max(0, u.airtimeBalance - amount),
+          revenueGenerated: u.revenueGenerated + amount,
+          validationsCount: u.validationsCount + 1
+        };
+      }
+      return u;
+    }));
+
+    // Increment global revenue
+    setDailyRevenue(prev => prev + amount);
+    setTotalConvertedAirtime(prev => prev + amount);
+
+    // Prepend a transaction record
+    const newTx: Transaction = {
+      id: `TX-${Math.floor(10000 + Math.random() * 90000)}`,
+      title: `Manual Airtime Conversion • ${phone}`,
+      date: new Date().toISOString().split('T')[0],
+      amount: amount,
+      type: 'credit',
+      status: 'completed',
+      category: 'Revenue Gateway'
+    };
+    setTransactions(prev => [newTx, ...prev]);
+
+    // Live alert
+    const alertRef = 'M2-SETTLED-' + Math.floor(100000 + Math.random() * 900000);
+    const newAlert: CreditAlert = {
+      id: alertRef,
+      phone: phone,
+      amount: amount,
+      timestamp: 'Just now'
+    };
+    setLiveCreditAlerts(prev => [newAlert, ...prev]);
+
+    // Fire Credit Alert notification toast
+    setActiveAlertNotification({
+      show: true,
+      phone: phone,
+      amount: amount,
+      accountNo: defaultAccountNo,
+      accountName: defaultAccountName,
+      bank: defaultBankName,
+      reference: alertRef
+    });
   };
 
   // Filtered list of transactions
@@ -178,12 +486,14 @@ export default function DashboardScreen({ user, onLogout }: DashboardScreenProps
     }).join(' ');
   }, []);
 
+  const currentThemeObj = THEMES.find(t => t.id === theme) || THEMES[0];
+
   return (
-    <div id="dashboard-container" className="relative min-h-screen bg-[#020408] text-slate-100 font-sans overflow-hidden">
+    <div id="dashboard-container" className={`relative min-h-screen ${currentThemeObj.bg} text-slate-100 font-sans overflow-hidden transition-all duration-500`}>
       
       {/* Immersive Atmospheric Background Elements */}
-      <div className="absolute top-[-200px] left-[-200px] w-[600px] h-[600px] bg-cyan-950/15 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-[-150px] right-[-100px] w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[100px] pointer-events-none"></div>
+      <div className={`absolute top-[-200px] left-[-200px] w-[600px] h-[600px] ${currentThemeObj.glowBg1} rounded-full blur-[120px] pointer-events-none transition-all duration-700`}></div>
+      <div className={`absolute bottom-[-150px] right-[-100px] w-[500px] h-[500px] ${currentThemeObj.glowBg2} rounded-full blur-[100px] pointer-events-none transition-all duration-700`}></div>
       
       {/* Dynamic interactive grid pattern background */}
       <div 
@@ -195,16 +505,16 @@ export default function DashboardScreen({ user, onLogout }: DashboardScreenProps
       ></div>
 
       {/* Dynamic Header / Navigation bar */}
-      <header className="sticky top-0 z-40 border-b border-white/15 bg-[#020408]/80 backdrop-blur-md relative">
-        <div className="absolute -bottom-px left-10 right-10 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent"></div>
+      <header className={`sticky top-0 z-40 border-b border-white/10 ${currentThemeObj.bg}/80 backdrop-blur-md relative transition-all duration-500`}>
+        <div className={`absolute -bottom-px left-10 right-10 h-px bg-gradient-to-r from-transparent via-${theme === 'cyber-slate' ? 'cyan' : theme === 'solar-flare' ? 'amber' : theme === 'emerald-vault' ? 'emerald' : 'violet'}-500/30 to-transparent`}></div>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-20 items-center justify-between">
             
             {/* Logo */}
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-m2-600 to-cyan-400 p-[1.5px]">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr ${currentThemeObj.primaryColor} p-[1.5px]`}>
                 <div className="flex h-full w-full items-center justify-center rounded-[10px] bg-slate-950">
-                  <svg className="w-5 h-5 text-m2-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <svg className={`w-5 h-5 ${currentThemeObj.accentClass}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 2L2 7l10 5 10-5-10-5z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2 17l10 5 10-5" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2 12l10 5 10-5" />
@@ -215,16 +525,33 @@ export default function DashboardScreen({ user, onLogout }: DashboardScreenProps
                 <span className="font-display text-xl font-extrabold tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
                   M2-GLOBAL-SERVICESS
                 </span>
-                <span className="ml-1.5 text-[9px] font-mono tracking-widest text-m2-400 border border-m2-500/20 px-1.5 py-0.5 rounded-full bg-m2-500/5">
+                <span className={`ml-1.5 text-[9px] font-mono tracking-widest ${currentThemeObj.accentClass} border ${currentThemeObj.borderAccent} px-1.5 py-0.5 rounded-full bg-white/[0.02]`}>
                   CORE-STABLE
                 </span>
               </div>
             </div>
 
-            {/* Quick stats banner (middle) */}
+            {/* Quick stats banner (middle) with theme selector */}
             <div className="hidden lg:flex items-center gap-6 text-xs font-mono text-slate-400">
+              {/* Theme Selection Dots */}
+              <div className="flex items-center gap-1 border border-white/10 bg-white/[0.02] p-1 rounded-lg">
+                <Paintbrush className="w-3.5 h-3.5 opacity-50 mr-0.5 text-white" />
+                {THEMES.map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTheme(t.id)}
+                    className={`w-3.5 h-3.5 rounded-full transition-all cursor-pointer ${
+                      theme === t.id ? 'ring-2 ring-white scale-110' : 'opacity-40 hover:opacity-100'
+                    }`}
+                    style={{ backgroundColor: t.accentHex }}
+                    title={`Switch to ${t.name}`}
+                  />
+                ))}
+              </div>
+              <span className="w-px h-4 bg-slate-800"></span>
               <div className="flex items-center gap-2">
-                <Network className="w-3.5 h-3.5 text-m2-400" />
+                <Network className={`w-3.5 h-3.5 ${currentThemeObj.accentClass}`} />
                 <span>LATENCY: <strong className="text-white">{networkPing}ms</strong></span>
               </div>
               <div className="flex items-center gap-2">
@@ -235,20 +562,37 @@ export default function DashboardScreen({ user, onLogout }: DashboardScreenProps
 
             {/* Logged in identity card & Logout */}
             <div className="flex items-center gap-4">
-              <div className="text-right hidden sm:block">
-                <h4 className="text-sm font-semibold text-white leading-tight">{user.name}</h4>
-                <p className="text-[10px] text-slate-400 font-mono tracking-wide">{userContextInfo.badge}</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(true)}
+                className="group flex items-center gap-3 text-right hover:opacity-95 transition-all focus:outline-none cursor-pointer"
+                title="Edit Identity Profile"
+              >
+                <div className="text-right hidden sm:block">
+                  <h4 className="text-sm font-semibold text-white group-hover:text-cyan-400 transition-colors leading-tight flex items-center gap-1.5 justify-end">
+                    {user.name}
+                    <Edit3 className="w-3 h-3 opacity-30 group-hover:opacity-100 transition-opacity text-cyan-400" />
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-mono tracking-wide uppercase">{user.role || userContextInfo.badge}</p>
+                </div>
 
-              {/* Avatar circle */}
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${avatarBg} text-white font-bold text-sm shadow-md shadow-slate-900`}>
-                {user.name.charAt(0).toUpperCase()}
-              </div>
+                {/* Avatar circle */}
+                <div className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${avatarBg} text-white font-bold text-sm shadow-md shadow-slate-900 border border-white/10 group-hover:scale-105 transition-transform overflow-hidden`}>
+                  {user.avatarUrl ? (
+                    <img referrerPolicy="no-referrer" src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span>{user.name.charAt(0).toUpperCase()}</span>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <Camera className="w-3.5 h-3.5 text-white" />
+                  </div>
+                </div>
+              </button>
 
               {/* Logout Button */}
               <button
                 onClick={onLogout}
-                className="flex items-center justify-center p-2.5 rounded-xl border border-slate-900 bg-slate-950 text-slate-400 hover:text-rose-400 hover:border-rose-500/20 hover:bg-rose-500/5 transition-all"
+                className="flex items-center justify-center p-2.5 rounded-xl border border-slate-900 bg-slate-950 text-slate-400 hover:text-rose-400 hover:border-rose-500/20 hover:bg-rose-500/5 transition-all cursor-pointer"
                 title="Secure Disconnect"
               >
                 <LogOut className="w-5 h-5" />
@@ -340,22 +684,20 @@ export default function DashboardScreen({ user, onLogout }: DashboardScreenProps
             </div>
           </div>
 
-          {/* Custom Dynamic Role-Based Card */}
+          {/* Reservoirs: Airtime Revenue Settlement Hub */}
           <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                {userContextInfo.customStatTitle}
-              </span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-m2-400">Airtime Cash Yield</span>
               <div className="rounded-lg bg-m2-500/10 p-2 text-m2-400 border border-m2-500/20">
-                <ShieldCheck className="w-4 h-4" />
+                <Smartphone className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-4">
-              <h3 className="text-2xl sm:text-3xl font-bold font-display tracking-wide text-white">
-                {userContextInfo.customStatValue}
+              <h3 className="text-2xl sm:text-3xl font-bold font-display tracking-wide text-emerald-400">
+                ₦{dailyRevenue.toLocaleString()}
               </h3>
-              <p className="mt-1 text-xs text-slate-500 leading-normal">
-                {userContextInfo.customStatSub}
+              <p className="mt-1 text-[11px] text-slate-400 leading-normal">
+                Settled today to <strong className="text-slate-300 font-mono">Maniru Mohammad</strong> (First Bank)
               </p>
             </div>
           </div>
@@ -445,61 +787,199 @@ export default function DashboardScreen({ user, onLogout }: DashboardScreenProps
               </div>
             </div>
 
-            {/* Interactive Projects Panel */}
+            {/* Interactive Total Active Users & Registered Nodes Panel */}
             <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-display text-lg font-bold text-white tracking-wide">Active Project Pipelines</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Click any record to cycle/augment milestones</p>
+                  <h3 className="font-display text-lg font-bold text-white tracking-wide">Total Active Users</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Live registered carriers & active phone nodes for validation airtime deductions</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] font-mono text-slate-400">4 HOSTED INJECTORS</span>
+                <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-xl text-xs font-bold shrink-0 self-start sm:self-auto">
+                  <Activity className="w-3.5 h-3.5 animate-pulse" />
+                  <span className="font-mono">{activeUsers.filter(u => u.status === 'online').length} ONLINE NODES</span>
                 </div>
               </div>
 
-              <div className="grid gap-4">
-                {projects.map((project) => (
-                  <div 
-                    key={project.id} 
-                    onClick={() => handleUpdateProgress(project.id)}
-                    className="group relative overflow-hidden rounded-2xl border border-slate-900 bg-slate-900/10 p-5 hover:bg-slate-900/30 hover:border-slate-800 transition-all cursor-pointer"
+              {/* Quick Inline Add User Form */}
+              <div className="border border-slate-900 bg-slate-900/10 p-4 rounded-2xl space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5 text-m2-400" />
+                    Register New Phone for Deductions
+                  </h4>
+                  <span className="text-[10px] font-mono text-slate-500">Requires Airtime Balance</span>
+                </div>
+
+                <form onSubmit={handleRegisterUser} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                  <input
+                    type="text"
+                    required
+                    placeholder="User Display Name"
+                    value={tempRegName}
+                    onChange={(e) => setTempRegName(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-700 outline-none focus:border-m2-500"
+                  />
+                  <input
+                    type="text"
+                    required
+                    placeholder="Phone (e.g. 08031234567)"
+                    value={tempRegPhone}
+                    onChange={(e) => setTempRegPhone(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono placeholder-slate-700 outline-none focus:border-m2-500"
+                  />
+                  <div className="flex gap-1.5">
+                    <select
+                      value={tempRegNetwork}
+                      onChange={(e) => setTempRegNetwork(e.target.value as any)}
+                      className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-1 py-1.5 text-xs text-white outline-none focus:border-m2-500"
+                    >
+                      <option value="MTN">MTN</option>
+                      <option value="Airtel">Airtel</option>
+                      <option value="Glo">Glo</option>
+                      <option value="9mobile">9mobile</option>
+                    </select>
+                    <input
+                      type="number"
+                      placeholder="Airtime ₦"
+                      value={tempRegAirtime}
+                      onChange={(e) => setTempRegAirtime(e.target.value)}
+                      className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-1.5 py-1.5 text-xs text-white font-mono placeholder-slate-700 outline-none focus:border-m2-500"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full bg-m2-600 hover:bg-m2-500 text-xs font-bold text-white uppercase tracking-wider py-1.5 rounded-lg transition-all border border-m2-500/20 flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-xs font-mono font-bold text-slate-500">{project.id}</span>
-                        <h4 className="text-sm font-bold text-white group-hover:text-m2-400 transition-colors">{project.name}</h4>
-                        <span className="text-[10px] bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-md text-slate-400">
-                          {project.category}
-                        </span>
-                      </div>
+                    <Plus className="w-3.5 h-3.5" />
+                    Register
+                  </button>
+                </form>
+              </div>
+
+              {/* Active Users Table-Like Rows */}
+              <div className="grid gap-3 max-h-[380px] overflow-y-auto pr-1">
+                {activeUsers.map((usr) => (
+                  <div 
+                    key={usr.id} 
+                    className="group relative overflow-hidden rounded-2xl border border-slate-900 bg-slate-900/10 p-4 hover:bg-slate-900/20 hover:border-slate-800 transition-all"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      {/* Left: User Identity Info */}
                       <div className="flex items-center gap-3">
-                        <span className="text-xs font-mono text-slate-400">Budget: <strong className="text-white">{project.budget}</strong></span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                          project.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                          project.status === 'Active' ? 'bg-m2-500/10 text-m2-400 border border-m2-500/20' :
-                          'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                        <div className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white font-bold text-xs uppercase tracking-wider ${
+                          usr.network === 'MTN' ? 'bg-amber-500' :
+                          usr.network === 'Airtel' ? 'bg-red-600' :
+                          usr.network === 'Glo' ? 'bg-emerald-600' :
+                          'bg-cyan-700'
                         }`}>
-                          {project.status}
-                        </span>
+                          {usr.name.charAt(0)}
+                          <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-slate-950 bg-emerald-500" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="text-xs font-bold text-white">{usr.name}</h4>
+                            <span className="text-[9px] text-slate-500 font-mono">({usr.id})</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 font-mono text-[10px]">
+                            <span className="text-slate-400">{usr.phone}</span>
+                            <span className="h-1 w-1 rounded-full bg-slate-700" />
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                              usr.network === 'MTN' ? 'bg-amber-500/10 text-amber-400' :
+                              usr.network === 'Airtel' ? 'bg-rose-500/10 text-rose-400' :
+                              usr.network === 'Glo' ? 'bg-emerald-500/10 text-emerald-400' :
+                              'bg-cyan-500/10 text-cyan-400'
+                            }`}>
+                              {usr.network}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Balance & Dynamic Interactive Simulation Triggers */}
+                      <div className="flex items-center justify-between sm:justify-end gap-4 border-t border-white/5 pt-2 sm:pt-0 sm:border-0">
+                        <div className="text-left sm:text-right">
+                          <span className="block text-[8px] uppercase tracking-wider font-bold text-slate-500">Airtime Balance</span>
+                          <span className="text-sm font-bold font-mono text-emerald-400">₦{usr.airtimeBalance.toLocaleString()}</span>
+                        </div>
+
+                        {/* Direct Control Buttons */}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRechargeAirtime(usr.phone, 1000)}
+                            className="text-[9px] font-mono font-bold bg-white/5 hover:bg-white/10 text-white px-2 py-1 rounded-md border border-white/5 transition-all cursor-pointer"
+                            title="Simulate ₦1,000 Airtime Voucher Recharge"
+                          >
+                            +₦1k Topup
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleManualAirtimeDeduction(usr.phone, 500)}
+                            className="text-[9px] font-mono font-bold bg-m2-950 hover:bg-m2-900 text-m2-400 px-2 py-1 rounded-md border border-m2-500/20 transition-all cursor-pointer flex items-center gap-0.5"
+                            title="Directly deduct ₦500 and convert to Maniru Mohammad First Bank account"
+                          >
+                            Deduct ₦500
+                            <ArrowUpRight className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Progress slider bar */}
-                    <div>
-                      <div className="flex items-center justify-between text-xs mb-1.5 font-mono">
-                        <span className="text-slate-500">Pipeline Progression</span>
-                        <span className="text-white font-bold">{project.progress}%</span>
-                      </div>
-                      <div className="relative h-2 w-full rounded-full bg-slate-900 overflow-hidden">
-                        <div 
-                          className="h-full rounded-full bg-gradient-to-r from-m2-500 to-cyan-400 transition-all duration-500"
-                          style={{ width: `${project.progress}%` }}
-                        />
+                    {/* Stats mini footprint */}
+                    <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-white/[0.03] text-[9px] font-mono text-slate-500">
+                      <span>Activity: <strong className="text-slate-400">{usr.lastActive}</strong></span>
+                      <div className="flex gap-2">
+                        <span>Validations: <strong className="text-slate-300">{usr.validationsCount}</strong></span>
+                        <span>Converted: <strong className="text-emerald-500">₦{usr.revenueGenerated}</strong></span>
                       </div>
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* M2 Secure Verification Hub (3D Tactile Buttons) */}
+            <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="font-display text-lg font-bold text-white tracking-wide">M2 Secure Identity Verification</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Tactile 3D compliance gateways for instant registry auditing</p>
+                </div>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.02] border border-white/5">
+                  <Shield className={`w-4 h-4 ${currentThemeObj.accentClass}`} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                {/* 3D BVN Validation Button */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenValidation('bvn')}
+                  className="relative group px-4 py-5 font-bold text-[11px] tracking-wider text-white bg-gradient-to-b from-cyan-600 to-cyan-700 rounded-2xl border-b-[6px] border-cyan-800 hover:from-cyan-500 hover:to-cyan-600 active:translate-y-[4px] active:border-b-[2px] transition-all duration-75 shadow-md shadow-cyan-950/40 flex flex-col items-center justify-center gap-3 cursor-pointer text-center"
+                >
+                  <Fingerprint className="w-6 h-6 text-cyan-200 group-hover:scale-110 transition-transform" />
+                  <span>VALIDATE BVN</span>
+                </button>
+
+                {/* 3D NIN Validation Button */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenValidation('nin')}
+                  className="relative group px-4 py-5 font-bold text-[11px] tracking-wider text-white bg-gradient-to-b from-violet-600 to-violet-700 rounded-2xl border-b-[6px] border-violet-800 hover:from-violet-500 hover:to-violet-600 active:translate-y-[4px] active:border-b-[2px] transition-all duration-75 shadow-md shadow-violet-950/40 flex flex-col items-center justify-center gap-3 cursor-pointer text-center"
+                >
+                  <ShieldCheck className="w-6 h-6 text-violet-200 group-hover:scale-110 transition-transform" />
+                  <span>VALIDATE NIN</span>
+                </button>
+
+                {/* 3D Account No Validation Button */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenValidation('account')}
+                  className="relative group px-4 py-5 font-bold text-[11px] tracking-wider text-white bg-gradient-to-b from-emerald-600 to-emerald-700 rounded-2xl border-b-[6px] border-emerald-800 hover:from-emerald-500 hover:to-emerald-600 active:translate-y-[4px] active:border-b-[2px] transition-all duration-75 shadow-md shadow-emerald-950/40 flex flex-col items-center justify-center gap-3 cursor-pointer text-center"
+                >
+                  <DollarSign className="w-6 h-6 text-emerald-200 group-hover:scale-110 transition-transform" />
+                  <span>VALIDATE ACCT NO</span>
+                </button>
               </div>
             </div>
 
@@ -673,7 +1153,9 @@ export default function DashboardScreen({ user, onLogout }: DashboardScreenProps
 
                     <div className="text-right">
                       <div className={`text-xs font-bold font-mono ${tx.type === 'credit' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {tx.type === 'credit' ? '+' : '-'}${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {tx.type === 'credit' ? '+' : '-'}
+                        {tx.category === 'Revenue Gateway' ? '₦' : '$'}
+                        {tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </div>
                       <span className="text-[9px] text-slate-500 font-mono">{tx.date}</span>
                     </div>
@@ -776,6 +1258,503 @@ export default function DashboardScreen({ user, onLogout }: DashboardScreenProps
       <footer className="border-t border-slate-900 bg-slate-950 py-10 mt-16 text-center text-xs text-slate-600 font-mono tracking-widest">
         © 2026 M2-GLOBAL-SERVICESS. ALL QUANTUM VECTORS REGISTERED.
       </footer>
+
+      {/* Dynamic Popups Container */}
+      <AnimatePresence>
+        {/* 1. User Profile Customizer Modal */}
+        {showProfileModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowProfileModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', duration: 0.5 }}
+              className="relative w-full max-w-lg bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl z-10 p-6 sm:p-8 space-y-6 text-left"
+            >
+              <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <Edit3 className={`w-5 h-5 ${currentThemeObj.accentClass}`} />
+                  <h3 className="font-display text-lg font-bold text-white uppercase tracking-wider">Update Identity Profile</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(false)}
+                  className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveProfile} className="space-y-5">
+                {/* Avatar selection preview */}
+                <div className="flex flex-col sm:flex-row items-center gap-5 p-4 rounded-2xl bg-white/[0.01] border border-white/5">
+                  <div className={`relative flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl ${avatarBg} text-white font-black text-2xl shadow-xl overflow-hidden border border-white/10`}>
+                    {profileAvatarSeed ? (
+                      <img
+                        referrerPolicy="no-referrer"
+                        src={`https://api.dicebear.com/7.x/${profileAvatarStyle}/svg?seed=${encodeURIComponent(profileAvatarSeed)}`}
+                        alt="Profile Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : user.avatarUrl ? (
+                      <img referrerPolicy="no-referrer" src={user.avatarUrl} alt="Preset Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{profileName.charAt(0).toUpperCase()}</span>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2.5 text-center sm:text-left">
+                    <span className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">AI-Generated Portrait Generator</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {(['pixel-art', 'bottts', 'adventurer', 'lorelei'] as const).map((style) => (
+                        <button
+                          key={style}
+                          type="button"
+                          onClick={() => {
+                            setProfileAvatarStyle(style);
+                            if (!profileAvatarSeed) setProfileAvatarSeed(profileName || 'M2');
+                          }}
+                          className={`text-[9px] font-mono font-bold py-1 px-1.5 border rounded-lg transition-all ${
+                            profileAvatarStyle === style && profileAvatarSeed
+                              ? 'border-cyan-500 bg-cyan-500/10 text-white'
+                              : 'border-white/5 bg-white/[0.01] text-slate-400 hover:border-white/10'
+                          }`}
+                        >
+                          {style.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <input
+                        type="text"
+                        value={profileAvatarSeed}
+                        onChange={(e) => setProfileAvatarSeed(e.target.value)}
+                        placeholder="Avatar generation seed..."
+                        className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-700 outline-none focus:border-cyan-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setProfileAvatarSeed('seed-' + Math.floor(Math.random() * 99999))}
+                        className="px-2.5 py-1 text-[10px] bg-white/5 hover:bg-white/10 text-white rounded-lg transition-all font-mono border border-white/5 cursor-pointer"
+                        title="Roll random vector coordinates"
+                      >
+                        ROLL
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pre-designed AI portrait selections */}
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-500">Or Select High-Fidelity Design Presets</label>
+                  <div className="grid grid-cols-4 gap-3">
+                    {PRESET_AVATARS.map((avatar, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setProfileAvatarSeed(''); // clear seed so preset url is prioritized
+                          onUserUpdate({
+                            ...user,
+                            avatarUrl: avatar.url
+                          });
+                        }}
+                        className={`group relative h-12 rounded-xl overflow-hidden border transition-all cursor-pointer ${
+                          user.avatarUrl === avatar.url
+                            ? 'border-cyan-500 ring-2 ring-cyan-500/30'
+                            : 'border-white/5 hover:border-white/20'
+                        }`}
+                        title={avatar.name}
+                      >
+                        <img referrerPolicy="no-referrer" src={avatar.url} alt={avatar.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                          <Check className="w-4 h-4 text-white" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Profile fields */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="block text-[10px] uppercase font-bold tracking-wider text-slate-400">Display Identity</label>
+                    <input
+                      type="text"
+                      required
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-cyan-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] uppercase font-bold tracking-wider text-slate-400">Active Division</label>
+                    <input
+                      type="text"
+                      required
+                      value={profileDept}
+                      onChange={(e) => setProfileDept(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-cyan-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] uppercase font-bold tracking-wider text-slate-400">Corporate Role</label>
+                    <input
+                      type="text"
+                      required
+                      value={profileRole}
+                      onChange={(e) => setProfileRole(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-cyan-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] uppercase font-bold tracking-wider text-slate-400">Ledger Entity</label>
+                    <input
+                      type="text"
+                      required
+                      value={profileCompany}
+                      onChange={(e) => setProfileCompany(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowProfileModal(false)}
+                    className="flex-1 py-3 text-xs font-bold uppercase tracking-wider text-slate-400 bg-white/5 hover:bg-white/10 rounded-xl transition-all cursor-pointer border border-white/5"
+                  >
+                    Cancel Override
+                  </button>
+                  <button
+                    type="submit"
+                    className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider text-white bg-gradient-to-r ${currentThemeObj.buttonBg} rounded-xl shadow-lg ${currentThemeObj.shadowClass} transition-all cursor-pointer`}
+                  >
+                    Commit Overrides
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* 2. Interactive Compliance Registry Validation Portal */}
+        {activeValidationType && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { if (!isValidationRunning) setActiveValidationType(null); }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', duration: 0.5 }}
+              className="relative w-full max-w-md bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl z-10 p-6 sm:p-8 space-y-6 text-left"
+            >
+              <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <Fingerprint className={`w-5 h-5 ${currentThemeObj.accentClass}`} />
+                  <h3 className="font-display text-lg font-bold text-white uppercase tracking-wider">
+                    {activeValidationType === 'bvn' ? 'Validate Bank Verification No' :
+                     activeValidationType === 'nin' ? 'Validate National ID Number' :
+                     'Validate Account Number'}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  disabled={isValidationRunning}
+                  onClick={() => setActiveValidationType(null)}
+                  className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors disabled:opacity-30 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Steps and details */}
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl border border-white/5 bg-white/[0.01] space-y-2">
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Initiate instant compliance registry validation. The standard processing fee is <strong className="text-emerald-400 font-mono">₦{validationFee}</strong>, deducted as airtime directly from your registered phone node and converted into bank-settled cash.
+                  </p>
+                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-900 flex justify-between items-center text-[10px] font-mono">
+                    <span className="text-slate-500 uppercase">Settlement account:</span>
+                    <span className="text-cyan-400 font-bold">{defaultAccountNo} (First Bank)</span>
+                  </div>
+                </div>
+
+                {validationSuccess === null && (
+                  <div className="space-y-4">
+                    {/* Active Phone Selection block */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-500">
+                          Select Charging Node (Phone)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setIsRegisteringPhoneForVal(!isRegisteringPhoneForVal)}
+                          className="text-[9px] text-m2-400 hover:underline font-bold"
+                        >
+                          {isRegisteringPhoneForVal ? "Select Existing" : "+ Register New Phone"}
+                        </button>
+                      </div>
+
+                      {isRegisteringPhoneForVal ? (
+                        <div className="border border-slate-900 bg-slate-900/40 p-3 rounded-xl space-y-2.5">
+                          <span className="block text-[9px] font-bold text-slate-400 uppercase">New Charging Phone Node</span>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              placeholder="Name"
+                              value={tempRegName}
+                              onChange={(e) => setTempRegName(e.target.value)}
+                              className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Phone"
+                              value={tempRegPhone}
+                              onChange={(e) => setTempRegPhone(e.target.value)}
+                              className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white font-mono"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <select
+                              value={tempRegNetwork}
+                              onChange={(e) => setTempRegNetwork(e.target.value as any)}
+                              className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white"
+                            >
+                              <option value="MTN">MTN</option>
+                              <option value="Airtel">Airtel</option>
+                              <option value="Glo">Glo</option>
+                              <option value="9mobile">9mobile</option>
+                            </select>
+                            <input
+                              type="number"
+                              placeholder="Airtime ₦"
+                              value={tempRegAirtime}
+                              onChange={(e) => setTempRegAirtime(e.target.value)}
+                              className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white font-mono"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              if (!tempRegPhone || !tempRegName) return;
+                              const newUser: ActiveUser = {
+                                id: `USR-${Math.floor(700 + Math.random() * 300)}`,
+                                name: tempRegName,
+                                phone: tempRegPhone,
+                                network: tempRegNetwork,
+                                airtimeBalance: parseFloat(tempRegAirtime) || 0,
+                                validationsCount: 0,
+                                revenueGenerated: 0,
+                                lastActive: 'Just now',
+                                status: 'online'
+                              };
+                              setActiveUsers(prev => [newUser, ...prev]);
+                              setSelectedPhoneForValidation(tempRegPhone);
+                              setTempRegName('');
+                              setTempRegPhone('');
+                              setTempRegAirtime('1500');
+                              setIsRegisteringPhoneForVal(false);
+                            }}
+                            className="w-full bg-m2-600 py-1.5 rounded-lg text-[10px] font-bold text-white uppercase"
+                          >
+                            Add & Select Phone Node
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <select
+                            value={selectedPhoneForValidation}
+                            onChange={(e) => setSelectedPhoneForValidation(e.target.value)}
+                            disabled={isValidationRunning}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-cyan-500 font-mono"
+                          >
+                            {activeUsers.map(usr => (
+                              <option key={usr.phone} value={usr.phone}>
+                                {usr.name} • {usr.phone} ({usr.network}) — Bal: ₦{usr.airtimeBalance}
+                              </option>
+                            ))}
+                          </select>
+                          {/* Low balance warning */}
+                          {(() => {
+                            const selectedUserObj = activeUsers.find(u => u.phone === selectedPhoneForValidation);
+                            if (selectedUserObj && selectedUserObj.airtimeBalance < validationFee) {
+                              return (
+                                <div className="text-[10px] text-rose-400 font-medium mt-1 flex items-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Insufficient airtime balance! Standard fee is ₦{validationFee}. Please top up on the main screen first.</span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-500">
+                        {activeValidationType.toUpperCase()} CODE STRING
+                      </label>
+                      <input
+                        type="text"
+                        disabled={isValidationRunning}
+                        value={validationInputValue}
+                        onChange={(e) => setValidationInputValue(e.target.value.replace(/\D/g, ''))}
+                        placeholder={activeValidationType === 'account' ? 'e.g. 0123456789' : 'e.g. 22345678901'}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-slate-700 outline-none focus:border-cyan-500"
+                      />
+                    </div>
+
+                    {!isValidationRunning ? (
+                      <button
+                        type="button"
+                        onClick={startValidationSimulation}
+                        disabled={!validationInputValue || (activeUsers.find(u => u.phone === selectedPhoneForValidation)?.airtimeBalance || 0) < validationFee}
+                        className={`w-full py-3.5 font-bold text-sm tracking-wider text-white bg-gradient-to-r ${currentThemeObj.buttonBg} rounded-xl shadow-lg ${currentThemeObj.shadowClass} disabled:opacity-40 transition-all cursor-pointer`}
+                      >
+                        INITIATE VERIFICATION (DEBIT ₦{validationFee})
+                      </button>
+                    ) : (
+                      <div className="space-y-3 pt-2">
+                        <div className="flex justify-between items-center text-[10px] font-mono uppercase text-slate-400">
+                          <span>{validationStatusMessage}</span>
+                          <span>{validationProgress}%</span>
+                        </div>
+                        <div className="relative h-2 w-full rounded-full bg-slate-900 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300"
+                            style={{ width: `${validationProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {validationSuccess !== null && (
+                  <div className="space-y-5 pt-1 text-center">
+                    {validationSuccess ? (
+                      <div className="p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 space-y-4">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          <Check className="w-7 h-7" />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-base font-bold text-white uppercase tracking-wider">LEDGER BLOCK APPROVED</h4>
+                          <p className="text-xs text-slate-400">Verification successful. Identity record is confirmed and securely synchronized.</p>
+                        </div>
+                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-900 space-y-1 text-left font-mono text-[10px]">
+                          <div className="flex justify-between"><span className="text-slate-500">GATEWAY SEC:</span><span className="text-slate-300">NFIU-COMPLIANT</span></div>
+                          <div className="flex justify-between"><span className="text-slate-500">BLOCK SIGN:</span><span className="text-emerald-400 select-all truncate max-w-[200px]">{validationResultHash}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-500">TIMESTAMP:</span><span className="text-slate-300">{new Date().toISOString()}</span></div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-5 rounded-2xl bg-rose-500/5 border border-rose-500/20 space-y-4">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                          <AlertCircle className="w-7 h-7" />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-base font-bold text-white uppercase tracking-wider">REGISTRY REJECTED</h4>
+                          <p className="text-xs text-slate-400">The digits provided do not match any recognized global cryptographic signature blocks.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setValidationSuccess(null)}
+                          className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-xs text-white font-bold rounded-xl border border-white/5 transition-all cursor-pointer"
+                        >
+                          TRY RE-SUBMITTING CODE
+                        </button>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveValidationType(null)}
+                      className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-xs text-slate-300 font-bold uppercase tracking-wider rounded-xl border border-slate-800 transition-all cursor-pointer"
+                    >
+                      Dismiss Portal
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* 3. Live Majestic First Bank Credit Alert Notification */}
+        {activeAlertNotification && activeAlertNotification.show && (
+          <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              className="bg-slate-950 border-2 border-emerald-500 rounded-2xl shadow-[0_4px_30px_rgba(16,185,129,0.2)] overflow-hidden text-left"
+            >
+              {/* Header */}
+              <div className="bg-emerald-600 px-4 py-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-white font-bold text-xs uppercase tracking-wider">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-white animate-ping" />
+                  <span>FIRST BANK CREDIT ALERT</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveAlertNotification(null)}
+                  className="text-white hover:text-emerald-200 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-4 space-y-3 font-mono text-xs">
+                <div className="flex justify-between items-center text-slate-500 text-[10px]">
+                  <span>M2 LIQUIDITY SETTLEMENT</span>
+                  <span>{new Date().toLocaleTimeString()}</span>
+                </div>
+                
+                <div className="py-2 text-center bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                  <span className="block text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Amount Credited</span>
+                  <span className="text-2xl font-black text-emerald-300">₦{activeAlertNotification.amount.toLocaleString()}.00</span>
+                </div>
+
+                <div className="space-y-1 text-[10px] text-slate-300">
+                  <div className="flex justify-between"><span className="text-slate-500">Account No:</span><span className="font-bold select-all text-white">{activeAlertNotification.accountNo}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Account Name:</span><span className="font-bold uppercase text-white">{activeAlertNotification.accountName}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Origin Node:</span><span className="text-white">{activeAlertNotification.phone}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">STAN Ref:</span><span className="text-slate-400 font-bold">{activeAlertNotification.reference}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Status:</span><span className="text-emerald-400 font-bold uppercase">Cash Liquidated</span></div>
+                </div>
+
+                <div className="pt-1.5 text-[9px] text-slate-500 text-center border-t border-white/5">
+                  Converted from airtime balance direct routing protocol.
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

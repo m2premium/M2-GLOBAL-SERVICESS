@@ -9,6 +9,8 @@ export interface User {
   joinDate: string;
 }
 
+export type Theme = 'cyber-slate' | 'solar-flare' | 'emerald-vault' | 'deep-space';
+
 export type ActiveView = 'login' | 'dashboard';
 
 export type LoginMode = 'login' | 'signup' | 'recover';

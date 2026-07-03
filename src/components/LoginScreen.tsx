@@ -1,11 +1,88 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Lock, User, KeyRound, AlertCircle, CheckCircle, Github, Linkedin, Facebook, Fingerprint, Shield, ShieldCheck, Check } from 'lucide-react';
-import { User as UserType, LoginMode } from '../types';
+import { Mail, Lock, User, KeyRound, AlertCircle, CheckCircle, Github, Linkedin, Facebook, Fingerprint, Shield, ShieldCheck, Check, Paintbrush } from 'lucide-react';
+import { User as UserType, LoginMode, Theme } from '../types';
 
 interface LoginScreenProps {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
   onLoginSuccess: (user: UserType) => void;
 }
+
+export const THEMES = [
+  {
+    id: 'cyber-slate' as Theme,
+    name: 'Cyber Slate',
+    bg: 'bg-[#020408]',
+    cardBg: 'bg-[#0a0d14]/60',
+    text: 'text-slate-100',
+    primaryColor: 'from-cyan-400 to-blue-500',
+    accentClass: 'text-cyan-400',
+    borderAccent: 'border-cyan-500/20',
+    glowBg1: 'bg-cyan-950/20',
+    glowBg2: 'bg-blue-900/10',
+    buttonBg: 'from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500',
+    badgeClass: 'border-cyan-500/10 bg-cyan-500/5 text-cyan-400',
+    borderClass: 'border-cyan-500/20',
+    shadowClass: 'shadow-cyan-900/20',
+    activeDot: 'bg-cyan-400',
+    accentHex: '#38a8f9',
+  },
+  {
+    id: 'solar-flare' as Theme,
+    name: 'Solar Flare',
+    bg: 'bg-[#0a0502]',
+    cardBg: 'bg-[#140d0a]/60',
+    text: 'text-amber-100',
+    primaryColor: 'from-amber-400 to-orange-500',
+    accentClass: 'text-amber-400',
+    borderAccent: 'border-amber-500/20',
+    glowBg1: 'bg-amber-950/20',
+    glowBg2: 'bg-orange-900/10',
+    buttonBg: 'from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500',
+    badgeClass: 'border-amber-500/10 bg-amber-500/5 text-amber-400',
+    borderClass: 'border-amber-500/20',
+    shadowClass: 'shadow-amber-900/20',
+    activeDot: 'bg-amber-400',
+    accentHex: '#fbbf24',
+  },
+  {
+    id: 'emerald-vault' as Theme,
+    name: 'Emerald Vault',
+    bg: 'bg-[#010905]',
+    cardBg: 'bg-[#04140c]/60',
+    text: 'text-emerald-100',
+    primaryColor: 'from-emerald-400 to-teal-500',
+    accentClass: 'text-emerald-400',
+    borderAccent: 'border-emerald-500/20',
+    glowBg1: 'bg-emerald-950/20',
+    glowBg2: 'bg-teal-900/10',
+    buttonBg: 'from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500',
+    badgeClass: 'border-emerald-500/10 bg-emerald-500/5 text-emerald-400',
+    borderClass: 'border-emerald-500/20',
+    shadowClass: 'shadow-emerald-900/20',
+    activeDot: 'bg-emerald-400',
+    accentHex: '#34d399',
+  },
+  {
+    id: 'deep-space' as Theme,
+    name: 'Deep Space',
+    bg: 'bg-[#030209]',
+    cardBg: 'bg-[#0c0617]/60',
+    text: 'text-violet-100',
+    primaryColor: 'from-violet-400 to-fuchsia-500',
+    accentClass: 'text-violet-400',
+    borderAccent: 'border-violet-500/20',
+    glowBg1: 'bg-violet-950/20',
+    glowBg2: 'bg-fuchsia-900/10',
+    buttonBg: 'from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500',
+    badgeClass: 'border-violet-500/10 bg-violet-500/5 text-violet-400',
+    borderClass: 'border-violet-500/20',
+    shadowClass: 'shadow-violet-900/20',
+    activeDot: 'bg-violet-400',
+    accentHex: '#a78bfa',
+  }
+];
 
 // Google SVG Icon for pixel-perfect social button
 const GoogleIcon = () => (
@@ -17,7 +94,7 @@ const GoogleIcon = () => (
   </svg>
 );
 
-export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
+export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginScreenProps) {
   // Prepopulated users matching the Flutter code
   const [users, setUsers] = useState<Record<string, string>>({
     'dribbble@gmail.com': '12345',
@@ -315,12 +392,14 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     triggerBiometricScan(completeUser);
   };
 
+  const currentThemeObj = THEMES.find(t => t.id === theme) || THEMES[0];
+
   return (
-    <div id="login-screen-container" className="relative w-full min-h-screen bg-[#020408] text-slate-100 flex flex-col font-sans overflow-hidden">
+    <div id="login-screen-container" className={`relative w-full min-h-screen ${currentThemeObj.bg} text-slate-100 flex flex-col font-sans overflow-hidden transition-all duration-500`}>
       
       {/* Immersive Atmospheric Background Elements */}
-      <div className="absolute top-[-200px] left-[-200px] w-[600px] h-[600px] bg-cyan-950/20 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-[-150px] right-[-100px] w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[100px] pointer-events-none"></div>
+      <div className={`absolute top-[-200px] left-[-200px] w-[600px] h-[600px] ${currentThemeObj.glowBg1} rounded-full blur-[120px] pointer-events-none transition-all duration-700`}></div>
+      <div className={`absolute bottom-[-150px] right-[-100px] w-[500px] h-[500px] ${currentThemeObj.glowBg2} rounded-full blur-[100px] pointer-events-none transition-all duration-700`}></div>
       
       {/* Dynamic interactive grid pattern background */}
       <div 
@@ -332,15 +411,35 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       ></div>
 
       {/* Corporate Header */}
-      <header className="flex justify-between items-center px-6 md:px-12 py-6 md:py-8 z-10 w-full max-w-7xl mx-auto">
+      <header className="flex flex-col sm:flex-row justify-between items-center px-6 md:px-12 py-6 md:py-8 z-10 w-full max-w-7xl mx-auto gap-4">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.5)]">
+          <div className={`w-10 h-10 bg-gradient-to-tr ${currentThemeObj.primaryColor} rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.5)]`}>
             <span className="text-white font-bold text-xl">M</span>
           </div>
           <span className="text-2xl font-black tracking-tighter text-white font-display">M2-GLOBAL-SERVICESS</span>
         </div>
-        <div className="flex items-center space-x-4 md:space-x-6 text-[10px] md:text-xs font-medium tracking-widest text-slate-400 font-mono">
-          <span className="hidden sm:inline">SYSTEM STATUS: <span className="text-cyan-400 font-bold">OPTIMAL</span></span>
+        <div className="flex flex-wrap items-center justify-center gap-3 md:gap-5 text-[10px] md:text-xs font-medium tracking-widest text-slate-400 font-mono">
+          {/* Quick theme selector dots */}
+          <div className="flex items-center gap-1.5 border border-white/10 bg-white/[0.02] p-1.5 rounded-lg">
+            <Paintbrush className="w-3.5 h-3.5 opacity-50 mr-0.5 text-white" />
+            {THEMES.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTheme(t.id)}
+                className={`w-3.5 h-3.5 rounded-full transition-all cursor-pointer ${
+                  theme === t.id ? 'ring-2 ring-white scale-110' : 'opacity-40 hover:opacity-100'
+                }`}
+                style={{ backgroundColor: t.accentHex }}
+                title={`Switch to ${t.name}`}
+              />
+            ))}
+          </div>
+          
+          <span className="hidden sm:inline w-px h-4 bg-slate-800"></span>
+          <span className="hidden sm:inline">THEME: <span className="text-white font-bold uppercase">{currentThemeObj.name}</span></span>
+          <span className="hidden sm:inline w-px h-4 bg-slate-800"></span>
+          <span className="hidden sm:inline">SYSTEM STATUS: <span className={`${currentThemeObj.accentClass} font-bold`}>OPTIMAL</span></span>
           <span className="hidden sm:inline w-px h-4 bg-slate-800"></span>
           <span>{currentTimeStr}</span>
         </div>
@@ -357,15 +456,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
             className="space-y-6 text-left"
           >
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-cyan-500/10 bg-cyan-500/5 font-mono text-[10px] tracking-widest text-cyan-400 uppercase">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            <div className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border ${currentThemeObj.badgeClass} font-mono text-[10px] tracking-widest uppercase`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${currentThemeObj.activeDot} animate-pulse`} />
               Standardized Corporate System
             </div>
             
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.1] text-white font-display tracking-tight">
-              The Future of <br/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-                Global Finance.
+              M2-VALIDATION-<br/>
+              <span className={`text-transparent bg-clip-text bg-gradient-to-r ${currentThemeObj.primaryColor}`}>
+                HUP-CENTER.
               </span>
             </h1>
             
@@ -375,11 +474,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             
             {/* Hardcoded stats showing precision and performance */}
             <div className="pt-6 flex space-x-8">
-              <div className="border-l-2 border-cyan-500 pl-4 py-1">
+              <div className={`border-l-2 ${currentThemeObj.borderAccent} pl-4 py-1`}>
                 <div className="text-2xl sm:text-3xl font-black text-white font-display tracking-wider">99.9%</div>
                 <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mt-0.5">Uptime</div>
               </div>
-              <div className="border-l-2 border-blue-500 pl-4 py-1">
+              <div className={`border-l-2 ${currentThemeObj.borderAccent} pl-4 py-1`}>
                 <div className="text-2xl sm:text-3xl font-black text-white font-display tracking-wider">256-bit</div>
                 <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mt-0.5">Encryption</div>
               </div>
@@ -576,11 +675,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
                               placeholder="dribbble@gmail.com"
-                              className="w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20 transition-all placeholder:text-slate-700"
+                              className={`w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:${currentThemeObj.borderClass} focus:ring-1 focus:ring-white/10 transition-all placeholder:text-slate-700`}
                             />
                           </div>
                           <p className="text-[10px] text-slate-500 mt-1 px-1">
-                            Presets: <span className="font-mono text-cyan-400/80">dribbble@gmail.com</span> or <span className="font-mono text-cyan-400/80">hunter@gmail.com</span>
+                            Presets: <span className={`font-mono ${currentThemeObj.accentClass}/80`}>dribbble@gmail.com</span> or <span className={`font-mono ${currentThemeObj.accentClass}/80`}>hunter@gmail.com</span>
                           </p>
                         </div>
 
@@ -592,7 +691,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                             <button
                               type="button"
                               onClick={() => setMode('recover')}
-                              className="text-[10px] text-cyan-500 hover:text-cyan-400 transition-colors uppercase font-bold tracking-wider"
+                              className={`text-[10px] ${currentThemeObj.accentClass} hover:opacity-85 transition-colors uppercase font-bold tracking-wider`}
                             >
                               Forgot?
                             </button>
@@ -607,11 +706,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
                               placeholder="••••••••"
-                              className="w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20 transition-all placeholder:text-slate-700"
+                              className={`w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:${currentThemeObj.borderClass} focus:ring-1 focus:ring-white/10 transition-all placeholder:text-slate-700`}
                             />
                           </div>
                           <p className="text-[10px] text-slate-500 mt-1 px-1">
-                            Passwords: <span className="font-mono text-cyan-400/80">12345</span> / <span className="font-mono text-cyan-400/80">hunter</span>
+                            Passwords: <span className={`font-mono ${currentThemeObj.accentClass}/80`}>12345</span> / <span className={`font-mono ${currentThemeObj.accentClass}/80`}>hunter</span>
                           </p>
                         </div>
 
@@ -619,35 +718,25 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                         <div className="pt-2 flex flex-col gap-2">
                           <button
                             type="submit"
-                            className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-cyan-900/20 transition-all transform active:scale-[0.98]"
+                            className={`w-full bg-gradient-to-r ${currentThemeObj.buttonBg} text-white font-bold py-3.5 rounded-xl shadow-lg ${currentThemeObj.shadowClass} transition-all transform active:scale-[0.98]`}
                           >
                             Access Secure Portal
                           </button>
 
                           {/* Quick Biometric Bypass Selector */}
-                          <div className="mt-3 p-3.5 rounded-xl border border-white/5 bg-white/[0.01] space-y-2.5">
+                          <div className="mt-3 p-3.5 rounded-xl border border-white/5 bg-white/[0.01] space-y-2">
                             <div className="flex items-center gap-1.5 font-mono text-[9px] tracking-widest text-slate-500 uppercase font-bold">
-                              <Fingerprint className="w-3.5 h-3.5 text-cyan-500" />
+                              <Fingerprint className={`w-3.5 h-3.5 ${currentThemeObj.accentClass}`} />
                               Simulated Biometric Bypass
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleBypassBypass('dribbble')}
-                                className="text-[10px] font-semibold py-2 px-3 border border-white/10 rounded-lg hover:bg-white/5 hover:border-cyan-500/30 text-slate-300 hover:text-white transition-all flex items-center justify-center gap-1.5 font-mono"
-                              >
-                                <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-                                DRIBBBLE DESIGN
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleBypassBypass('hunter')}
-                                className="text-[10px] font-semibold py-2 px-3 border border-white/10 rounded-lg hover:bg-white/5 hover:border-cyan-500/30 text-slate-300 hover:text-white transition-all flex items-center justify-center gap-1.5 font-mono"
-                              >
-                                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                                HUNTER INTEL
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleBypassBypass('hunter')}
+                              className="w-full text-xs font-bold py-2.5 px-3 border border-slate-800/80 bg-slate-900/50 hover:bg-slate-900 rounded-lg hover:border-cyan-500/30 text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2 font-mono uppercase tracking-wider cursor-pointer"
+                            >
+                              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+                              BIOMETRIC FINGERPRINT SCAN
+                            </button>
                           </div>
                         </div>
 
@@ -656,7 +745,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                           <button
                             type="button"
                             onClick={() => setMode('signup')}
-                            className="ml-1.5 font-bold text-cyan-400 hover:text-cyan-300 transition-colors"
+                            className={`ml-1.5 font-bold ${currentThemeObj.accentClass} hover:opacity-80 transition-colors`}
                           >
                             Create Account
                           </button>
@@ -681,7 +770,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                               value={name}
                               onChange={(e) => setName(e.target.value)}
                               placeholder="John Doe"
-                              className="w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-700"
+                              className={`w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:${currentThemeObj.borderClass} transition-all placeholder:text-slate-700`}
                             />
                           </div>
                         </div>
@@ -700,7 +789,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
                               placeholder="name@gmail.com"
-                              className="w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-700"
+                              className={`w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:${currentThemeObj.borderClass} transition-all placeholder:text-slate-700`}
                             />
                           </div>
                         </div>
@@ -719,7 +808,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
                               placeholder="At least 5 characters"
-                              className="w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-700"
+                              className={`w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:${currentThemeObj.borderClass} transition-all placeholder:text-slate-700`}
                             />
                           </div>
                         </div>
@@ -738,14 +827,14 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                               value={confirmPassword}
                               onChange={(e) => setConfirmPassword(e.target.value)}
                               placeholder="Confirm your password"
-                              className="w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-700"
+                              className={`w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:${currentThemeObj.borderClass} transition-all placeholder:text-slate-700`}
                             />
                           </div>
                         </div>
 
                         <button
                           type="submit"
-                          className="w-full mt-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-cyan-900/20 transition-all transform active:scale-[0.98]"
+                          className={`w-full mt-2 bg-gradient-to-r ${currentThemeObj.buttonBg} text-white font-bold py-3.5 rounded-xl shadow-lg ${currentThemeObj.shadowClass} transition-all transform active:scale-[0.98]`}
                         >
                           Register Account
                         </button>
@@ -755,7 +844,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                           <button
                             type="button"
                             onClick={() => setMode('login')}
-                            className="ml-1.5 font-bold text-cyan-400 hover:text-cyan-300 transition-colors"
+                            className={`ml-1.5 font-bold ${currentThemeObj.accentClass} hover:opacity-80 transition-colors`}
                           >
                             Sign In
                           </button>
@@ -786,14 +875,14 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
                               placeholder="name@gmail.com"
-                              className="w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-700"
+                              className={`w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:${currentThemeObj.borderClass} transition-all placeholder:text-slate-700`}
                             />
                           </div>
                         </div>
 
                         <button
                           type="submit"
-                          className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-cyan-900/20 transition-all"
+                          className={`w-full bg-gradient-to-r ${currentThemeObj.buttonBg} text-white font-bold py-3.5 rounded-xl shadow-lg ${currentThemeObj.shadowClass} transition-all`}
                         >
                           Recover Identity
                         </button>
