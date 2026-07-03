@@ -109,6 +109,63 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
   const [networkPing, setNetworkPing] = useState(14);
   const [shieldIntegrity, setShieldIntegrity] = useState(99.98);
 
+  // M2 Telecom Gateway Integration States (VTpass, Shago, Clubkonnect)
+  const [selectedApiProvider, setSelectedApiProvider] = useState<string>('vtpass');
+  const [apiMode, setApiMode] = useState<'sandbox' | 'production'>('production');
+  const [apiKey, setApiKey] = useState('m2_live_pk_8a92b10fd4e3c68a9d8c2e171');
+
+  // Developer security & Custom API variables
+  const [isDeveloperVerified, setIsDeveloperVerified] = useState(false);
+  const [devPassword, setDevPassword] = useState('');
+  const [devError, setDevError] = useState('');
+  const [customApis, setCustomApis] = useState<{ name: string; value: string }[]>([]);
+  const [newApiName, setNewApiName] = useState('');
+  const [showAddApiForm, setShowAddApiForm] = useState(false);
+
+  interface ApiLogEntry {
+    id: string;
+    method: string;
+    endpoint: string;
+    status: number;
+    latency: number;
+    timestamp: string;
+    requestPayload: any;
+    responsePayload: any;
+  }
+
+  const [apiLogs, setApiLogs] = useState<ApiLogEntry[]>([
+    {
+      id: 'API-REQ-889',
+      method: 'GET',
+      endpoint: '/api/v1/gateway/status',
+      status: 200,
+      latency: 48,
+      timestamp: new Date(Date.now() - 300000).toLocaleTimeString(),
+      requestPayload: null,
+      responsePayload: {
+        status: "active",
+        channels: ["MTN", "Airtel", "Glo", "9mobile"],
+        bvn_registry: "online",
+        nin_registry: "online",
+        settlement_node: "First Bank (3115711063)"
+      }
+    }
+  ]);
+
+  const triggerApiLog = (method: string, endpoint: string, status: number, request: any, response: any) => {
+    const newLog: ApiLogEntry = {
+      id: 'API-REQ-' + Math.floor(100 + Math.random() * 900),
+      method,
+      endpoint,
+      status,
+      latency: Math.floor(60 + Math.random() * 110),
+      timestamp: new Date().toLocaleTimeString(),
+      requestPayload: request,
+      responsePayload: response
+    };
+    setApiLogs(prev => [newLog, ...prev]);
+  };
+
   // Periodically fluctuate system stats to feel alive!
   React.useEffect(() => {
     const interval = setInterval(() => {
@@ -169,20 +226,30 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
     setValidationStatusMessage('READY FOR SECURE TRANSMISSION');
     setValidationSuccess(null);
     setValidationResultHash('');
+    if (user.role === 'user' && user.phone) {
+      setSelectedPhoneForValidation(user.phone);
+    }
   };
 
   const startValidationSimulation = () => {
     if (!validationInputValue) return;
 
-    // Find the user being charged
-    const chargingUser = activeUsers.find(u => u.phone === selectedPhoneForValidation);
-    if (!chargingUser) {
-      alert("Please select or register an active phone number for airtime deduction first.");
-      return;
-    }
-    if (chargingUser.airtimeBalance < validationFee) {
-      alert(`Insufficient airtime balance on ${selectedPhoneForValidation}! Standard fee is ₦${validationFee}. Please top up or select another registered phone.`);
-      return;
+    // Zero-tax exemption applies if the user is a normal user OR matching their registered phone
+    const isTaxExempt = (user.role === 'user') || (user.phone && selectedPhoneForValidation === user.phone);
+    const effectiveFee = isTaxExempt ? 0 : validationFee;
+
+    // Find the user being charged if not tax-exempt
+    let chargingUser = null;
+    if (!isTaxExempt) {
+      chargingUser = activeUsers.find(u => u.phone === selectedPhoneForValidation);
+      if (!chargingUser) {
+        alert("Please select or register an active phone number for airtime deduction first.");
+        return;
+      }
+      if (chargingUser.airtimeBalance < effectiveFee) {
+        alert(`Insufficient airtime balance on ${selectedPhoneForValidation}! Standard fee is ₦${validationFee}. Please top up or select another registered phone.`);
+        return;
+      }
     }
 
     setIsValidationRunning(true);
@@ -190,11 +257,11 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
     setValidationSuccess(null);
 
     const steps = [
-      { progress: 15, msg: `DEDUCTING ₦${validationFee}.00 AIRTIME FEE FROM ${selectedPhoneForValidation}...` },
-      { progress: 40, msg: `CONVERTING AIRTIME VALUE VIA M2 TELECOM LIQUIDITY GATEWAY...` },
-      { progress: 70, msg: `ROUTING CASH SETTLEMENT TO FIRST BANK ACCT: ${defaultAccountNo}...` },
-      { progress: 90, msg: `WAITING FOR CENTRAL BANK AUDITING HANDSHAKE CONFIRMATION...` },
-      { progress: 100, msg: `COMPLETED • CREDITED TO MANIRU MOHAMMAD` },
+      { progress: 15, msg: isTaxExempt ? `ZERO-TAX EXEMPTION DETECTED FOR PHONE ${user.phone || selectedPhoneForValidation}...` : `DEDUCTING ₦${effectiveFee}.00 AIRTIME FEE FROM ${selectedPhoneForValidation}...` },
+      { progress: 40, msg: isTaxExempt ? `BYPASSING AIRTIME CHARGE • SECURE OVERRIDE GRANTED...` : `CONVERTING AIRTIME VALUE VIA M2 TELECOM LIQUIDITY GATEWAY...` },
+      { progress: 70, msg: `ROUTING ZERO-TAX IDENTIFIER QUERY TO REGISTRY DIRECTORY...` },
+      { progress: 90, msg: `WAITING FOR CENTRAL REGISTRY CRYPTOGRAPHIC HANDSHAKE...` },
+      { progress: 100, msg: `COMPLETED • VERIFICATION COMPLIANT` },
     ];
 
     let currentStepIdx = 0;
@@ -204,15 +271,15 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
         setValidationProgress(currentProgress);
         setValidationStatusMessage(steps[currentStepIdx].msg);
         
-        // At 40%, perform the state deduction
-        if (currentProgress === 40) {
+        // At 40%, perform the state deduction if not tax-exempt
+        if (currentProgress === 40 && !isTaxExempt) {
           setActiveUsers(prev => prev.map(u => {
             if (u.phone === selectedPhoneForValidation) {
               return {
                 ...u,
-                airtimeBalance: Math.max(0, u.airtimeBalance - validationFee),
+                airtimeBalance: Math.max(0, u.airtimeBalance - effectiveFee),
                 validationsCount: u.validationsCount + 1,
-                revenueGenerated: u.revenueGenerated + validationFee
+                revenueGenerated: u.revenueGenerated + effectiveFee
               };
             }
             return u;
@@ -227,31 +294,33 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
         const isSuccessful = validationInputValue.trim().length >= 8;
         setValidationSuccess(isSuccessful);
         if (isSuccessful) {
-          const mockHash = 'M2-NODE-' + Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+          const mockHash = 'M2-TAXFREE-' + Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Math.random().toString(36).substring(2, 10).toUpperCase();
           setValidationResultHash(mockHash);
 
-          // Increment daily profit and total converted airtime
-          setDailyRevenue(prev => prev + validationFee);
-          setTotalConvertedAirtime(prev => prev + validationFee);
+          // Increment daily profit and total converted airtime (only for standard fee-paying transactions)
+          if (effectiveFee > 0) {
+            setDailyRevenue(prev => prev + effectiveFee);
+            setTotalConvertedAirtime(prev => prev + effectiveFee);
+          }
 
           // Add to transactions ledger
           const newTx: Transaction = {
             id: `TX-${Math.floor(10000 + Math.random() * 90000)}`,
-            title: `Airtime Conversion Settlement • ${selectedPhoneForValidation}`,
+            title: isTaxExempt ? `Zero-Tax Identity Check • ${user.phone || selectedPhoneForValidation}` : `Airtime Conversion Settlement • ${selectedPhoneForValidation}`,
             date: new Date().toISOString().split('T')[0],
-            amount: validationFee,
+            amount: effectiveFee,
             type: 'credit',
             status: 'completed',
-            category: 'Revenue Gateway'
+            category: isTaxExempt ? 'Tax-Exempt Check' : 'Revenue Gateway'
           };
           setTransactions(prev => [newTx, ...prev]);
 
           // Add to live credit logs list
-          const alertRef = 'M2-SETTLED-' + Math.floor(100000 + Math.random() * 900000);
+          const alertRef = 'M2-TAXFREE-' + Math.floor(100000 + Math.random() * 900000);
           const newAlert: CreditAlert = {
             id: alertRef,
-            phone: selectedPhoneForValidation,
-            amount: validationFee,
+            phone: user.phone || selectedPhoneForValidation,
+            amount: effectiveFee,
             timestamp: 'Just now'
           };
           setLiveCreditAlerts(prev => [newAlert, ...prev]);
@@ -259,13 +328,62 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
           // Trigger Toast notification
           setActiveAlertNotification({
             show: true,
-            phone: selectedPhoneForValidation,
-            amount: validationFee,
+            phone: user.phone || selectedPhoneForValidation,
+            amount: effectiveFee,
             accountNo: defaultAccountNo,
             accountName: defaultAccountName,
             bank: defaultBankName,
             reference: alertRef
           });
+
+          // Trigger API Log
+          triggerApiLog(
+            'POST',
+            `/api/v1/identity/${activeValidationType || 'bvn'}`,
+            200,
+            {
+              api_key: apiKey,
+              provider: selectedApiProvider,
+              mode: apiMode,
+              identifier: validationInputValue,
+              phone: user.phone || selectedPhoneForValidation,
+              fee: effectiveFee,
+              tax_exempt: "true"
+            },
+            {
+              status: "success",
+              code: "200",
+              message: `${(activeValidationType || 'bvn').toUpperCase()} verification processed successfully without charge.`,
+              transaction_id: alertRef,
+              validated_node: user.phone || selectedPhoneForValidation,
+              tax_policy: "TAX_EXEMPT_ZERO_FEE",
+              liquid_settlement: {
+                destination: defaultBankName,
+                account: defaultAccountNo,
+                payout_ngn: 0
+              }
+            }
+          );
+        } else {
+          // Trigger Failed API Log
+          triggerApiLog(
+            'POST',
+            `/api/v1/identity/${activeValidationType || 'bvn'}`,
+            400,
+            {
+              api_key: apiKey,
+              provider: selectedApiProvider,
+              mode: apiMode,
+              identifier: validationInputValue,
+              phone: user.phone || selectedPhoneForValidation
+            },
+            {
+              status: "failed",
+              code: "400",
+              error: "INVALID_IDENTIFIER_FORMAT",
+              message: "Check format length and digits count."
+            }
+          );
         }
       }
     }, 700);
@@ -290,6 +408,14 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
       .filter(tx => tx.type === 'debit' && tx.status === 'completed')
       .reduce((acc, tx) => acc + tx.amount, 0);
   }, [transactions]);
+
+  const totalUserProfit = useMemo(() => {
+    return activeUsers.reduce((sum, usr) => sum + usr.revenueGenerated, 0);
+  }, [activeUsers]);
+
+  const onlineNodesCount = useMemo(() => {
+    return activeUsers.filter(u => u.status === 'online').length;
+  }, [activeUsers]);
 
   // Contextual Greetings and specific details based on user
   const userContextInfo = useMemo(() => {
@@ -397,6 +523,28 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
       }
       return u;
     }));
+
+    // Trigger API topup log
+    triggerApiLog(
+      'POST',
+      '/api/v1/airtime/topup',
+      201,
+      {
+        api_key: apiKey,
+        provider: selectedApiProvider,
+        mode: apiMode,
+        phone_node: phone,
+        recharge_amount: amount
+      },
+      {
+        status: "success",
+        code: "201",
+        message: "Airtime voucher topup processed successfully.",
+        target_phone: phone,
+        credited_amount: amount,
+        gateway_ref: 'API-TOP-' + Math.floor(100000 + Math.random() * 900000)
+      }
+    );
   };
 
   // Manually convert airtime from a selected user to cash
@@ -458,15 +606,49 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
       bank: defaultBankName,
       reference: alertRef
     });
+
+    // Trigger API conversion charge log
+    triggerApiLog(
+      'POST',
+      '/api/v1/airtime/charge',
+      200,
+      {
+        api_key: apiKey,
+        provider: selectedApiProvider,
+        mode: apiMode,
+        phone_node: phone,
+        network: userToCharge.network,
+        charge_amount: amount,
+        settlement: {
+          destination_bank: defaultBankName,
+          account_no: defaultAccountNo,
+          account_name: defaultAccountName
+        }
+      },
+      {
+        status: "success",
+        code: "200",
+        message: `₦${amount} airtime conversion liquidated successfully.`,
+        transaction_id: alertRef,
+        charged_carrier: userToCharge.network,
+        charged_number: phone,
+        settlement_status: "settled",
+        settled_payout: amount
+      }
+    );
   };
 
   // Filtered list of transactions
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
+      if (user.role === 'user') {
+        const isTaxExemptCheck = tx.category === 'Tax-Exempt Check' || tx.title.includes('Zero-Tax');
+        if (!isTaxExemptCheck) return false;
+      }
       if (txFilter === 'all') return true;
       return tx.type === txFilter;
     });
-  }, [transactions, txFilter]);
+  }, [transactions, txFilter, user.role]);
 
   // Multi-color user avatars
   const avatarBg = useMemo(() => {
@@ -627,82 +809,139 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
         </div>
 
         {/* Core Stats Overview Cards */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          
-          {/* Reservoirs: Total Portfolio */}
-          <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Portfolio Capital</span>
-              <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400 border border-emerald-500/20">
-                <DollarSign className="w-4 h-4" />
+        {user.role === 'user' ? (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+            {/* User Node Phone */}
+            <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between text-left">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-m2-400">Registered Phone Node</span>
+                <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400 border border-emerald-500/20">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-2xl font-bold font-mono tracking-wide text-white">
+                  {user.phone || 'Not Registered'}
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Assigned device for identity lookup bypass
+                </p>
               </div>
             </div>
-            <div className="mt-4">
-              <h3 className="text-2xl sm:text-3xl font-bold font-display tracking-wide text-white">
-                ${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </h3>
-              <p className="mt-1 text-xs text-slate-500 font-mono flex items-center gap-1">
-                <TrendingUp className="w-3 h-3 text-emerald-400" />
-                <span className="text-emerald-400 font-bold">+12.4%</span> vs baseline target
-              </p>
-            </div>
-          </div>
 
-          {/* Reservoirs: Inflow Ledger */}
-          <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Secured Inflow</span>
-              <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400 border border-emerald-500/20">
-                <TrendingUp className="w-4 h-4" />
+            {/* Zero-Tax Waiver */}
+            <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between text-left">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tax compliance status</span>
+                <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400 border border-emerald-500/20">
+                  <Check className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-2xl font-bold font-display tracking-wide text-emerald-400">
+                  0% TAX (EXEMPT)
+                </h3>
+                <p className="mt-1 text-xs text-slate-500 font-mono">
+                  All validation processing fees waived (saved ₦500/check)
+                </p>
               </div>
             </div>
-            <div className="mt-4">
-              <h3 className="text-2xl sm:text-3xl font-bold font-display tracking-wide text-white">
-                ${creditTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </h3>
-              <p className="mt-1 text-xs text-slate-500 font-mono">
-                Corporate capital pipelines verified
-              </p>
-            </div>
-          </div>
 
-          {/* Reservoirs: Outflow Ledger */}
-          <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Committed Outflow</span>
-              <div className="rounded-lg bg-rose-500/10 p-2 text-rose-400 border border-rose-500/20">
-                <TrendingDown className="w-4 h-4" />
+            {/* Total validations */}
+            <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between text-left">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Validations Completed</span>
+                <div className="rounded-lg bg-cyan-500/10 p-2 text-cyan-400 border border-cyan-500/20">
+                  <Fingerprint className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-2xl font-bold font-display tracking-wide text-cyan-400">
+                  {transactions.filter(t => t.category === 'Tax-Exempt Check').length} Processed
+                </h3>
+                <p className="mt-1 text-xs text-slate-500 font-mono">
+                  Secure cryptographic signatures synchronized
+                </p>
               </div>
             </div>
-            <div className="mt-4">
-              <h3 className="text-2xl sm:text-3xl font-bold font-display tracking-wide text-white">
-                ${debitTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </h3>
-              <p className="mt-1 text-xs text-slate-500 font-mono">
-                System expenses & routing nodes
-              </p>
-            </div>
           </div>
-
-          {/* Reservoirs: Airtime Revenue Settlement Hub */}
-          <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-m2-400">Airtime Cash Yield</span>
-              <div className="rounded-lg bg-m2-500/10 p-2 text-m2-400 border border-m2-500/20">
-                <Smartphone className="w-4 h-4" />
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            
+            {/* Reservoirs: Total Portfolio Profit from Users */}
+            <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-m2-400">Total User Profit</span>
+                <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400 border border-emerald-500/20">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-2xl sm:text-3xl font-bold font-display tracking-wide text-white">
+                  ₦{totalUserProfit.toLocaleString()}
+                </h3>
+                <p className="mt-1 text-xs text-slate-500 font-mono">
+                  Converted profit from {activeUsers.length} active nodes
+                </p>
               </div>
             </div>
-            <div className="mt-4">
-              <h3 className="text-2xl sm:text-3xl font-bold font-display tracking-wide text-emerald-400">
-                ₦{dailyRevenue.toLocaleString()}
-              </h3>
-              <p className="mt-1 text-[11px] text-slate-400 leading-normal">
-                Settled today to <strong className="text-slate-300 font-mono">Maniru Mohammad</strong> (First Bank)
-              </p>
-            </div>
-          </div>
 
-        </div>
+            {/* Reservoirs: Airtime Revenue Settlement Hub */}
+            <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Daily Cash Yield</span>
+                <div className="rounded-lg bg-m2-500/10 p-2 text-m2-400 border border-m2-500/20">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-2xl sm:text-3xl font-bold font-display tracking-wide text-emerald-400">
+                  ₦{dailyRevenue.toLocaleString()}
+                </h3>
+                <p className="mt-1 text-[11px] text-slate-400 leading-normal">
+                  Settled to <strong className="text-slate-300 font-mono">Maniru Mohammad</strong> (First Bank)
+                </p>
+              </div>
+            </div>
+
+            {/* Reservoirs: Active registered nodes */}
+            <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Node Status</span>
+                <div className="rounded-lg bg-cyan-500/10 p-2 text-cyan-400 border border-cyan-500/20">
+                  <RefreshCw className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-2xl sm:text-3xl font-bold font-display tracking-wide text-cyan-400">
+                  {onlineNodesCount} / {activeUsers.length} Online
+                </h3>
+                <p className="mt-1 text-xs text-slate-500 font-mono">
+                  Identity & liquidity links active
+                </p>
+              </div>
+            </div>
+
+            {/* Reservoirs: Reserve capital pool */}
+            <div className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Reserve Capital</span>
+                <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400 border border-emerald-500/20">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-2xl sm:text-3xl font-bold font-display tracking-wide text-white">
+                  ${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h3>
+                <p className="mt-1 text-xs text-slate-500 font-mono">
+                  Global reserve collateral backing
+                </p>
+              </div>
+            </div>
+
+          </div>
+        )}
 
         {/* Main Columns Grid Layout */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
@@ -710,85 +949,97 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
           {/* Left Column: Interactive Project Matrix and Analytics (7 Cols) */}
           <div className="lg:col-span-7 space-y-8">
             
-            {/* Interactive SVG Chart Card */}
-            <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-4">
-              <div className="flex items-center justify-between">
+            {/* M2 Secure Verification Hub (3D Tactile Buttons) */}
+            <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-6">
+              <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="font-display text-lg font-bold text-white tracking-wide">Corporate Cash Trend & Yield</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Real-time ledger projection model</p>
+                  <h3 className="font-display text-lg font-bold text-white tracking-wide">M2 Secure Identity Verification</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Tactile 3D compliance gateways for instant registry auditing</p>
                 </div>
-                <span className="text-xs font-mono text-m2-400 bg-m2-500/5 px-2.5 py-1 rounded-lg border border-m2-500/20">
-                  AUTO-UPDATE ACTIVE
-                </span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.02] border border-white/5">
+                  <Shield className={`w-4 h-4 ${currentThemeObj.accentClass}`} />
+                </div>
               </div>
 
-              {/* Graphic custom SVG Line chart */}
-              <div className="relative h-48 w-full bg-slate-900/20 rounded-2xl border border-slate-900 overflow-hidden flex items-end">
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent z-10" />
-                
-                {/* Visual Chart Grid Lines */}
-                <div className="absolute inset-0 grid grid-rows-4 opacity-5 pointer-events-none">
-                  <div className="border-b border-white" />
-                  <div className="border-b border-white" />
-                  <div className="border-b border-white" />
-                  <div className="border-b border-white" />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                {/* 3D BVN Validation Button */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenValidation('bvn')}
+                  className="relative group px-4 py-5 font-bold text-[11px] tracking-wider text-white bg-gradient-to-b from-cyan-600 to-cyan-700 rounded-2xl border-b-[6px] border-cyan-800 hover:from-cyan-500 hover:to-cyan-600 active:translate-y-[4px] active:border-b-[2px] transition-all duration-75 shadow-md shadow-cyan-950/40 flex flex-col items-center justify-center gap-3 cursor-pointer text-center"
+                >
+                  <Fingerprint className="w-6 h-6 text-cyan-200 group-hover:scale-110 transition-transform" />
+                  <span>VALIDATE BVN</span>
+                </button>
 
-                {/* SVG Polyline with high-end glows */}
-                <svg className="absolute inset-0 w-full h-full z-20" viewBox="0 0 400 120" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="chart-glow" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#0e8dec" stopOpacity="0.4" />
-                      <stop offset="100%" stopColor="#0e8dec" stopOpacity="0.0" />
-                    </linearGradient>
-                  </defs>
-                  
-                  {/* Fill Area */}
-                  <path
-                    d={`M20,110 L${svgLineCoordinates} L380,110 Z`}
-                    fill="url(#chart-glow)"
-                    className="transition-all duration-700"
-                  />
-                  
-                  {/* Outer Stroke line */}
-                  <polyline
-                    fill="none"
-                    stroke="#38a8f9"
-                    strokeWidth="3"
-                    points={svgLineCoordinates}
-                    className="transition-all duration-700 drop-shadow-[0_2px_8px_rgba(56,168,249,0.5)]"
-                  />
-                  
-                  {/* Individual joint dots */}
-                  {svgLineCoordinates.split(' ').map((coord, i) => {
-                    const [x, y] = coord.split(',');
-                    return (
-                      <circle
-                        key={i}
-                        cx={x}
-                        cy={y}
-                        r="3.5"
-                        fill="#ffffff"
-                        stroke="#026fc6"
-                        strokeWidth="1.5"
-                        className="hover:scale-150 transition-transform cursor-pointer"
-                      />
-                    );
-                  })}
-                </svg>
+                {/* 3D NIN Validation Button */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenValidation('nin')}
+                  className="relative group px-4 py-5 font-bold text-[11px] tracking-wider text-white bg-gradient-to-b from-violet-600 to-violet-700 rounded-2xl border-b-[6px] border-violet-800 hover:from-violet-500 hover:to-violet-600 active:translate-y-[4px] active:border-b-[2px] transition-all duration-75 shadow-md shadow-violet-950/40 flex flex-col items-center justify-center gap-3 cursor-pointer text-center"
+                >
+                  <ShieldCheck className="w-6 h-6 text-violet-200 group-hover:scale-110 transition-transform" />
+                  <span>VALIDATE NIN</span>
+                </button>
 
-                {/* Floating tooltips */}
-                <div className="absolute bottom-3 left-4 z-30 font-mono text-[9px] text-slate-500">
-                  Q2 BASELINE RECORD
-                </div>
-                <div className="absolute bottom-3 right-4 z-30 font-mono text-[9px] text-m2-400 font-bold">
-                  Q3 PRE-SYNCHRONIZED TARGET
-                </div>
+                {/* 3D Account No Validation Button */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenValidation('account')}
+                  className="relative group px-4 py-5 font-bold text-[11px] tracking-wider text-white bg-gradient-to-b from-emerald-600 to-emerald-700 rounded-2xl border-b-[6px] border-emerald-800 hover:from-emerald-500 hover:to-emerald-600 active:translate-y-[4px] active:border-b-[2px] transition-all duration-75 shadow-md shadow-emerald-950/40 flex flex-col items-center justify-center gap-3 cursor-pointer text-center"
+                >
+                  <DollarSign className="w-6 h-6 text-emerald-200 group-hover:scale-110 transition-transform" />
+                  <span>VALIDATE ACCT NO</span>
+                </button>
               </div>
             </div>
 
-            {/* Interactive Total Active Users & Registered Nodes Panel */}
-            <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-6">
+            {user.role === 'user' ? (
+              /* A beautiful Phone No Registered card */
+              <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-6">
+                <div className="flex justify-between items-center text-left">
+                  <div>
+                    <h3 className="font-display text-lg font-bold text-white tracking-wide">Registered Phone Node</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Your connected terminal status with active tax removal protocol</p>
+                  </div>
+                  <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-400 border border-emerald-500/20">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-4 text-left font-sans">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-mono text-slate-500 uppercase font-bold block">Assigned Device Phone</span>
+                    <span className="text-base font-bold font-mono text-white block">{user.phone || 'Not Assigned'}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-mono text-slate-500 uppercase font-bold block">Compliance Tax Status</span>
+                    <span className="text-xs font-bold font-mono text-emerald-400 flex items-center gap-1.5 pt-0.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                      100% TAX REMOVED (0 CHARGE)
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-mono text-slate-500 uppercase font-bold block">Validation Terminal Node</span>
+                    <span className="text-xs font-bold text-slate-300 block">{user.name} ({user.email})</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-mono text-slate-500 uppercase font-bold block">Carrier Routing</span>
+                    <span className="text-xs font-bold text-m2-400 font-mono block">M2 DIRECT-SYNC TELECOM</span>
+                  </div>
+                </div>
+
+                <div className="text-xs text-slate-400 bg-emerald-500/5 p-4 rounded-xl border border-emerald-500/10 flex items-start gap-2.5 text-left">
+                  <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    <strong>Zero-Tax Mode Active:</strong> Standard verification fees (<strong className="text-emerald-400 font-mono">₦500.00</strong> per verification) are completely waived when initiating queries. Verification tunnels are secured under license key <span className="font-mono text-emerald-300 font-bold bg-emerald-950 px-1 py-0.5 rounded">M2-TAXFREE-NODE</span>.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Interactive Total Active Users & Registered Nodes Panel */}
+                <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-display text-lg font-bold text-white tracking-wide">Total Active Users</h3>
@@ -938,52 +1189,425 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
               </div>
             </div>
 
-            {/* M2 Secure Verification Hub (3D Tactile Buttons) */}
-            <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-6">
-              <div className="flex justify-between items-center">
+            {/* Interactive SVG Chart Card */}
+            <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-display text-lg font-bold text-white tracking-wide">M2 Secure Identity Verification</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Tactile 3D compliance gateways for instant registry auditing</p>
+                  <h3 className="font-display text-lg font-bold text-white tracking-wide">Corporate Cash Trend & Yield</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Real-time ledger projection model</p>
                 </div>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.02] border border-white/5">
-                  <Shield className={`w-4 h-4 ${currentThemeObj.accentClass}`} />
-                </div>
+                <span className="text-xs font-mono text-m2-400 bg-m2-500/5 px-2.5 py-1 rounded-lg border border-m2-500/20">
+                  AUTO-UPDATE ACTIVE
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
-                {/* 3D BVN Validation Button */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenValidation('bvn')}
-                  className="relative group px-4 py-5 font-bold text-[11px] tracking-wider text-white bg-gradient-to-b from-cyan-600 to-cyan-700 rounded-2xl border-b-[6px] border-cyan-800 hover:from-cyan-500 hover:to-cyan-600 active:translate-y-[4px] active:border-b-[2px] transition-all duration-75 shadow-md shadow-cyan-950/40 flex flex-col items-center justify-center gap-3 cursor-pointer text-center"
-                >
-                  <Fingerprint className="w-6 h-6 text-cyan-200 group-hover:scale-110 transition-transform" />
-                  <span>VALIDATE BVN</span>
-                </button>
+              {/* Graphic custom SVG Line chart */}
+              <div className="relative h-48 w-full bg-slate-900/20 rounded-2xl border border-slate-900 overflow-hidden flex items-end">
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent z-10" />
+                
+                {/* Visual Chart Grid Lines */}
+                <div className="absolute inset-0 grid grid-rows-4 opacity-5 pointer-events-none">
+                  <div className="border-b border-white" />
+                  <div className="border-b border-white" />
+                  <div className="border-b border-white" />
+                  <div className="border-b border-white" />
+                </div>
 
-                {/* 3D NIN Validation Button */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenValidation('nin')}
-                  className="relative group px-4 py-5 font-bold text-[11px] tracking-wider text-white bg-gradient-to-b from-violet-600 to-violet-700 rounded-2xl border-b-[6px] border-violet-800 hover:from-violet-500 hover:to-violet-600 active:translate-y-[4px] active:border-b-[2px] transition-all duration-75 shadow-md shadow-violet-950/40 flex flex-col items-center justify-center gap-3 cursor-pointer text-center"
-                >
-                  <ShieldCheck className="w-6 h-6 text-violet-200 group-hover:scale-110 transition-transform" />
-                  <span>VALIDATE NIN</span>
-                </button>
+                {/* SVG Polyline with high-end glows */}
+                <svg className="absolute inset-0 w-full h-full z-20" viewBox="0 0 400 120" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="chart-glow" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0e8dec" stopOpacity="0.4" />
+                      <stop offset="100%" stopColor="#0e8dec" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+                  
+                  {/* Fill Area */}
+                  <path
+                    d={`M20,110 L${svgLineCoordinates} L380,110 Z`}
+                    fill="url(#chart-glow)"
+                    className="transition-all duration-700"
+                  />
+                  
+                  {/* Outer Stroke line */}
+                  <polyline
+                    fill="none"
+                    stroke="#38a8f9"
+                    strokeWidth="3"
+                    points={svgLineCoordinates}
+                    className="transition-all duration-700 drop-shadow-[0_2px_8px_rgba(56,168,249,0.5)]"
+                  />
+                  
+                  {/* Individual joint dots */}
+                  {svgLineCoordinates.split(' ').map((coord, i) => {
+                    const [x, y] = coord.split(',');
+                    return (
+                      <circle
+                        key={i}
+                        cx={x}
+                        cy={y}
+                        r="3.5"
+                        fill="#ffffff"
+                        stroke="#026fc6"
+                        strokeWidth="1.5"
+                        className="hover:scale-150 transition-transform cursor-pointer"
+                      />
+                    );
+                  })}
+                </svg>
 
-                {/* 3D Account No Validation Button */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenValidation('account')}
-                  className="relative group px-4 py-5 font-bold text-[11px] tracking-wider text-white bg-gradient-to-b from-emerald-600 to-emerald-700 rounded-2xl border-b-[6px] border-emerald-800 hover:from-emerald-500 hover:to-emerald-600 active:translate-y-[4px] active:border-b-[2px] transition-all duration-75 shadow-md shadow-emerald-950/40 flex flex-col items-center justify-center gap-3 cursor-pointer text-center"
-                >
-                  <DollarSign className="w-6 h-6 text-emerald-200 group-hover:scale-110 transition-transform" />
-                  <span>VALIDATE ACCT NO</span>
-                </button>
+                {/* Floating tooltips */}
+                <div className="absolute bottom-3 left-4 z-30 font-mono text-[9px] text-slate-500">
+                  Q2 BASELINE RECORD
+                </div>
+                <div className="absolute bottom-3 right-4 z-30 font-mono text-[9px] text-m2-400 font-bold">
+                  Q3 PRE-SYNCHRONIZED TARGET
+                </div>
               </div>
             </div>
 
-          </div>
+            {/* M2 Telecom API Gateway Terminal */}
+            <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-5">
+              {!isDeveloperVerified ? (
+                <div className="space-y-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-xl bg-rose-500/10 p-2.5 text-rose-400 border border-rose-500/20">
+                      <ShieldAlert className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-display text-base font-bold text-white tracking-wide">
+                        Developer Access Required
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        The Aggregator API Gateway console is encrypted for safety.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2 text-left">
+                    <label className="block text-[10px] font-mono uppercase font-bold text-slate-500">
+                      Developer Private Key
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="password"
+                          value={devPassword}
+                          onChange={(e) => {
+                            setDevPassword(e.target.value);
+                            setDevError('');
+                          }}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-m2-500 outline-none"
+                          placeholder="Enter M2-ADMIN-XXX Key..."
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              if (devPassword.trim() === 'M2-ADMIN-001') {
+                                setIsDeveloperVerified(true);
+                                setDevPassword('');
+                                setDevError('');
+                              } else {
+                                setDevError('Invalid developer key. Unauthorized access denied.');
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (devPassword.trim() === 'M2-ADMIN-001') {
+                            setIsDeveloperVerified(true);
+                            setDevPassword('');
+                            setDevError('');
+                          } else {
+                            setDevError('Invalid developer key. Unauthorized access denied.');
+                          }
+                        }}
+                        className="bg-m2-500 hover:bg-m2-600 text-slate-950 font-bold py-2 px-4 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap"
+                      >
+                        Unlock Terminal
+                      </button>
+                    </div>
+                    {devError && (
+                      <p className="text-[11px] text-rose-400 font-mono flex items-center gap-1.5 mt-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        {devError}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-display text-lg font-bold text-white tracking-wide flex items-center gap-2">
+                        <Cpu className="w-5 h-5 text-m2-400 animate-pulse" />
+                        M2 Telecom API Gateway Terminal
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Real-time REST API integration console for national carriers
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsDeveloperVerified(false);
+                          triggerApiLog('POST', '/api/v1/gateway/lock', 200, null, { status: "locked" });
+                        }}
+                        className="text-[10px] font-mono text-rose-400 hover:text-rose-300 border border-rose-500/20 bg-rose-500/5 px-2.5 py-1 rounded-md cursor-pointer transition-all uppercase font-bold"
+                      >
+                        Lock Console
+                      </button>
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                      <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                        DEV ACCESS UNLOCKED
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* API Configuration Bar */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3.5 rounded-2xl border border-slate-900 bg-slate-900/15 text-xs font-mono">
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">AGGREGATOR API</label>
+                      <select
+                        value={selectedApiProvider}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedApiProvider(val);
+                          triggerApiLog('GET', `/api/v1/switch-provider?provider=${val}`, 200, null, {
+                            status: "success",
+                            active_provider: val.toUpperCase(),
+                            endpoints_loaded: ["airtime/charge", "airtime/topup", "identity/bvn", "identity/nin"]
+                          });
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-m2-500 outline-none cursor-pointer"
+                      >
+                        <option value="vtpass">VTPass Airtime API</option>
+                        <option value="shago">Shago Payments API</option>
+                        <option value="clubkonnect">ClubKonnect Telecom</option>
+                        {customApis.map((api) => (
+                          <option key={api.value} value={api.value}>
+                            {api.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">TRANSACTION MODE</label>
+                      <div className="flex rounded-lg border border-slate-800 bg-slate-950 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setApiMode('sandbox');
+                            triggerApiLog('POST', '/api/v1/gateway/mode', 200, { mode: 'sandbox' }, { status: 'success', active_mode: 'sandbox' });
+                          }}
+                          className={`flex-1 text-center py-1 rounded text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                            apiMode === 'sandbox' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'text-slate-500 hover:text-slate-300'
+                          }`}
+                        >
+                          Sandbox
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setApiMode('production');
+                            triggerApiLog('POST', '/api/v1/gateway/mode', 200, { mode: 'production' }, { status: 'success', active_mode: 'production' });
+                          }}
+                          className={`flex-1 text-center py-1 rounded text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                            apiMode === 'production' ? 'bg-m2-500/10 text-m2-400 border border-m2-500/20' : 'text-slate-500 hover:text-slate-300'
+                          }`}
+                        >
+                          Prod
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">API PRIVATE KEY</label>
+                      <input
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-m2-500 outline-none"
+                        placeholder="Key..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Add Custom API Section */}
+                  <div className="pt-1">
+                    {showAddApiForm ? (
+                      <div className="p-3.5 rounded-2xl border border-dashed border-slate-800 bg-slate-900/10 space-y-3">
+                        <div className="flex items-center justify-between text-xs font-mono text-slate-400">
+                          <span className="font-bold flex items-center gap-1.5 text-m2-400">
+                            <Plus className="w-3.5 h-3.5" />
+                            REGISTER NEW ENDPOINT CHANNEL
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowAddApiForm(false)}
+                            className="text-slate-500 hover:text-slate-300 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                          <div className="sm:col-span-2">
+                            <label className="block text-[10px] uppercase font-mono font-bold text-slate-500 mb-1">API Provider Name</label>
+                            <input
+                              type="text"
+                              value={newApiName}
+                              onChange={(e) => setNewApiName(e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white outline-none focus:border-m2-500 text-xs font-mono"
+                              placeholder="e.g. Mono Pay, Flutterwave Direct"
+                            />
+                          </div>
+                          <div className="flex items-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!newApiName.trim()) return;
+                                const val = newApiName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+                                const newApi = { name: newApiName.trim(), value: val };
+                                setCustomApis(prev => [...prev, newApi]);
+                                setSelectedApiProvider(val);
+                                setNewApiName('');
+                                setShowAddApiForm(false);
+                                triggerApiLog('POST', `/api/v1/registry/add-gateway`, 201, newApi, {
+                                  status: "created",
+                                  message: `Gateway ${newApi.name} successfully registered in security matrix.`
+                                });
+                              }}
+                              className="w-full bg-m2-500 hover:bg-m2-600 text-slate-950 font-bold py-1.5 rounded-lg text-xs transition-colors cursor-pointer text-center font-mono uppercase"
+                            >
+                              Register
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center bg-slate-900/10 p-2.5 rounded-xl border border-slate-900">
+                        <span className="text-[11px] text-slate-400 font-mono">Custom Integrations: {customApis.length}</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddApiForm(true)}
+                          className="text-[10px] font-bold text-m2-400 hover:text-m2-300 font-mono flex items-center gap-1 uppercase cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" /> Add Custom API
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Logs Console Container */}
+                  <div className="rounded-2xl border border-slate-900 bg-slate-950 overflow-hidden flex flex-col h-72">
+                    {/* Console Header Bar */}
+                    <div className="flex items-center justify-between px-4 py-2 bg-slate-900/50 border-b border-slate-900 text-xs font-mono text-slate-400">
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+                        LIVE TELEMETRY FEED
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerApiLog('POST', '/api/v1/gateway/ping', 200, { ping: 'request' }, {
+                              status: 'healthy',
+                              latency_ms: 45,
+                              carrier_handshake: 'verified',
+                              telecom_routing: 'active'
+                            });
+                          }}
+                          className="hover:text-emerald-400 text-[10px] font-bold cursor-pointer"
+                          title="Test live API route connection"
+                        >
+                          PING GATEWAY
+                        </button>
+                        <span className="text-slate-800">•</span>
+                        <button
+                          type="button"
+                          onClick={() => setApiLogs([])}
+                          className="hover:text-rose-400 text-[10px] font-bold cursor-pointer"
+                        >
+                          CLEAR
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Log Line Rows */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 font-mono text-xs select-text">
+                      {apiLogs.map((log) => (
+                        <div key={log.id} className="p-3 rounded-xl border border-slate-900 bg-slate-900/10 space-y-2 text-left">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                log.method === 'GET' ? 'bg-sky-500/10 text-sky-400' : 'bg-emerald-500/10 text-emerald-400'
+                              }`}>
+                                {log.method}
+                              </span>
+                              <span className="text-slate-300 font-bold break-all text-[11px]">{log.endpoint}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                              <span>{log.timestamp}</span>
+                              <span>•</span>
+                              <span className="text-slate-400 font-bold">{log.latency}ms</span>
+                              <span>•</span>
+                              <span className={`font-bold px-1 rounded ${
+                                log.status >= 200 && log.status < 300 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                              }`}>
+                                {log.status} {log.status === 200 ? 'OK' : log.status === 201 ? 'CREATED' : 'BAD REQUEST'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Request / Response JSON Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[10px] pt-1">
+                            {log.requestPayload && (
+                              <div className="space-y-1">
+                                <span className="text-slate-500 uppercase tracking-wider font-bold">Request Payload</span>
+                                <pre className="p-2 rounded bg-slate-950 border border-slate-900 overflow-x-auto text-cyan-400 max-h-32 text-[10px] leading-relaxed text-left">
+                                  {JSON.stringify(log.requestPayload, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            {log.responsePayload && (
+                              <div className={`space-y-1 ${!log.requestPayload ? 'col-span-2' : ''}`}>
+                                <span className="text-slate-500 uppercase tracking-wider font-bold">Response JSON</span>
+                                <pre className="p-2 rounded bg-slate-950 border border-slate-900 overflow-x-auto text-emerald-400 max-h-32 text-[10px] leading-relaxed text-left">
+                                  {JSON.stringify(log.responsePayload, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+
+                      {apiLogs.length === 0 && (
+                        <div className="h-full flex flex-col items-center justify-center py-12 text-slate-500 text-center space-y-2">
+                          <Cpu className="w-8 h-8 text-slate-700 animate-pulse" />
+                          <p className="text-xs font-bold uppercase tracking-wider">Console streams cleared</p>
+                          <p className="text-[10px] text-slate-600">Perform a verification, top up airtime, or deduct airtime to log live API transmissions.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Developer Credentials Notes */}
+                  <div className="flex gap-2.5 p-3 rounded-2xl border border-slate-900/60 bg-slate-900/5 text-[11px] text-slate-400 leading-relaxed text-left">
+                    <Info className="w-4 h-4 text-m2-400 shrink-0 mt-0.5" />
+                    <p>
+                      <strong>Production Credentials Active:</strong> Transactions are routed through corporate channels using secure headers. Change the provider selector to instantly hot-swap target servers.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
+
+      </div>
 
           {/* Right Column: Ledger Logs & Add Transaction (5 Cols) */}
           <div className="lg:col-span-5 space-y-8">
@@ -998,22 +1622,25 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
                 </div>
                 
                 {/* Ledger actions (Add transaction trigger) */}
-                <button
-                  onClick={() => setShowAddTx(!showAddTx)}
-                  className="flex items-center gap-1.5 self-start sm:self-auto rounded-xl bg-m2-600 hover:bg-m2-500 py-2 px-3.5 text-xs font-bold text-white transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Record Flow
-                </button>
+                {user.role === 'admin' && (
+                  <button
+                    onClick={() => setShowAddTx(!showAddTx)}
+                    className="flex items-center gap-1.5 self-start sm:self-auto rounded-xl bg-m2-600 hover:bg-m2-500 py-2 px-3.5 text-xs font-bold text-white transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Record Flow
+                  </button>
+                )}
               </div>
 
               {/* Add Transaction Form Panel */}
-              <AnimatePresence>
-                {showAddTx && (
-                  <motion.form
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
+              {user.role === 'admin' && (
+                <AnimatePresence>
+                  {showAddTx && (
+                    <motion.form
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
                     onSubmit={handleAddTransaction}
                     className="overflow-hidden border border-slate-900 bg-slate-900/20 rounded-2xl p-4 space-y-3.5"
                   >
@@ -1094,6 +1721,7 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
                   </motion.form>
                 )}
               </AnimatePresence>
+              )}
 
               {/* Filter Tabs */}
               <div className="flex items-center gap-2 border-b border-slate-900 pb-3">
@@ -1172,81 +1800,83 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
             </div>
 
             {/* Contextual Widget for the User's Role */}
-            <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-4">
-              <h3 className="font-display text-base font-bold text-white tracking-wide">
-                {userContextInfo.widgetTitle}
-              </h3>
+            {user.role === 'admin' && (
+              <div className="rounded-3xl border border-slate-900 bg-slate-950 p-6 space-y-4">
+                <h3 className="font-display text-base font-bold text-white tracking-wide">
+                  {userContextInfo.widgetTitle}
+                </h3>
 
-              {user.email.toLowerCase() === 'hunter@gmail.com' ? (
-                /* Hunter specific security modules */
-                <div className="space-y-3 font-mono text-xs">
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-500/10 bg-emerald-500/5 text-emerald-400">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>GATEWAY PROTOCOL V4</span>
+                {user.email.toLowerCase() === 'hunter@gmail.com' ? (
+                  /* Hunter specific security modules */
+                  <div className="space-y-3 font-mono text-xs">
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-500/10 bg-emerald-500/5 text-emerald-400">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>GATEWAY PROTOCOL V4</span>
+                      </div>
+                      <span className="font-bold">SHIELDED</span>
                     </div>
-                    <span className="font-bold">SHIELDED</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-500/10 bg-emerald-500/5 text-emerald-400">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>MAIN SYNC INTRUSION BUFFER</span>
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-500/10 bg-emerald-500/5 text-emerald-400">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>MAIN SYNC INTRUSION BUFFER</span>
+                      </div>
+                      <span className="font-bold">ACTIVE</span>
                     </div>
-                    <span className="font-bold">ACTIVE</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-amber-500/10 bg-amber-500/5 text-amber-400">
-                    <div className="flex items-center gap-2">
-                      <CircleDot className="w-4 h-4 animate-pulse" />
-                      <span>FIREWALL AUDIT NODE #088</span>
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border border-amber-500/10 bg-amber-500/5 text-amber-400">
+                      <div className="flex items-center gap-2">
+                        <CircleDot className="w-4 h-4 animate-pulse" />
+                        <span>FIREWALL AUDIT NODE #088</span>
+                      </div>
+                      <span className="font-bold">RE-SYNCHRONIZING</span>
                     </div>
-                    <span className="font-bold">RE-SYNCHRONIZING</span>
                   </div>
-                </div>
-              ) : user.email.toLowerCase() === 'dribbble@gmail.com' ? (
-                /* Dribbble specific design modules */
-                <div className="space-y-3 font-mono text-xs">
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-500/10 bg-emerald-500/5 text-emerald-400">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>BRAND DESIGN SYSTEM COMPONENT V3</span>
+                ) : user.email.toLowerCase() === 'dribbble@gmail.com' ? (
+                  /* Dribbble specific design modules */
+                  <div className="space-y-3 font-mono text-xs">
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-500/10 bg-emerald-500/5 text-emerald-400">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>BRAND DESIGN SYSTEM COMPONENT V3</span>
+                      </div>
+                      <span className="font-bold">APPROVED</span>
                     </div>
-                    <span className="font-bold">APPROVED</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-m2-500/10 bg-m2-500/5 text-m2-400">
-                    <div className="flex items-center gap-2">
-                      <CircleDot className="w-4 h-4" />
-                      <span>M2 LIGHTBLUE PALETTE HEX</span>
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border border-m2-500/10 bg-m2-500/5 text-m2-400">
+                      <div className="flex items-center gap-2">
+                        <CircleDot className="w-4 h-4" />
+                        <span>M2 LIGHTBLUE PALETTE HEX</span>
+                      </div>
+                      <span className="font-bold">#38A8F9</span>
                     </div>
-                    <span className="font-bold">#38A8F9</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-violet-500/10 bg-violet-500/5 text-violet-400">
-                    <div className="flex items-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>UI STAGE ASSET GENERATOR</span>
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border border-violet-500/10 bg-violet-500/5 text-violet-400">
+                      <div className="flex items-center gap-2">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>UI STAGE ASSET GENERATOR</span>
+                      </div>
+                      <span className="font-bold">UPDATING</span>
                     </div>
-                    <span className="font-bold">UPDATING</span>
                   </div>
-                </div>
-              ) : (
-                /* Standard guest / employee details */
-                <div className="space-y-3 font-mono text-xs">
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-slate-900 bg-slate-900/50 text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span>ONBOARDING RECORDS SECURED</span>
+                ) : (
+                  /* Standard guest / employee details */
+                  <div className="space-y-3 font-mono text-xs">
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border border-slate-900 bg-slate-900/50 text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span>ONBOARDING RECORDS SECURED</span>
+                      </div>
+                      <span>COMPLETE</span>
                     </div>
-                    <span>COMPLETE</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-slate-900 bg-slate-900/50 text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span>GLOBAL ENTERPRISE SIGN-ON</span>
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border border-slate-900 bg-slate-900/50 text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span>GLOBAL ENTERPRISE SIGN-ON</span>
+                      </div>
+                      <span>ACTIVATED</span>
                     </div>
-                    <span>ACTIVATED</span>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
           </div>
 
@@ -1503,115 +2133,132 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
                 {validationSuccess === null && (
                   <div className="space-y-4">
                     {/* Active Phone Selection block */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center">
-                        <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-500">
-                          Select Charging Node (Phone)
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setIsRegisteringPhoneForVal(!isRegisteringPhoneForVal)}
-                          className="text-[9px] text-m2-400 hover:underline font-bold"
-                        >
-                          {isRegisteringPhoneForVal ? "Select Existing" : "+ Register New Phone"}
-                        </button>
+                    {user.role === 'user' ? (
+                      <div className="space-y-1.5 p-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 text-left">
+                        <span className="block text-[10px] uppercase font-bold tracking-widest text-emerald-400">
+                          REGISTERED ZERO-TAX IDENTITY NODE
+                        </span>
+                        <div className="flex justify-between items-center text-sm font-mono text-white pt-1">
+                          <div>
+                            <span className="font-bold block">{user.phone || 'N/A'}</span>
+                            <span className="text-[10px] text-slate-400 font-sans block mt-0.5">Assigned Terminal: {user.name}</span>
+                          </div>
+                          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-md uppercase tracking-wider">
+                            ZERO-TAX ACTIVE
+                          </span>
+                        </div>
                       </div>
-
-                      {isRegisteringPhoneForVal ? (
-                        <div className="border border-slate-900 bg-slate-900/40 p-3 rounded-xl space-y-2.5">
-                          <span className="block text-[9px] font-bold text-slate-400 uppercase">New Charging Phone Node</span>
-                          <div className="grid grid-cols-2 gap-2">
-                            <input
-                              type="text"
-                              placeholder="Name"
-                              value={tempRegName}
-                              onChange={(e) => setTempRegName(e.target.value)}
-                              className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white"
-                            />
-                            <input
-                              type="text"
-                              placeholder="Phone"
-                              value={tempRegPhone}
-                              onChange={(e) => setTempRegPhone(e.target.value)}
-                              className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white font-mono"
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <select
-                              value={tempRegNetwork}
-                              onChange={(e) => setTempRegNetwork(e.target.value as any)}
-                              className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white"
-                            >
-                              <option value="MTN">MTN</option>
-                              <option value="Airtel">Airtel</option>
-                              <option value="Glo">Glo</option>
-                              <option value="9mobile">9mobile</option>
-                            </select>
-                            <input
-                              type="number"
-                              placeholder="Airtime ₦"
-                              value={tempRegAirtime}
-                              onChange={(e) => setTempRegAirtime(e.target.value)}
-                              className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white font-mono"
-                            />
-                          </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-500">
+                            Select Charging Node (Phone)
+                          </label>
                           <button
                             type="button"
-                            onClick={(e) => {
-                              if (!tempRegPhone || !tempRegName) return;
-                              const newUser: ActiveUser = {
-                                id: `USR-${Math.floor(700 + Math.random() * 300)}`,
-                                name: tempRegName,
-                                phone: tempRegPhone,
-                                network: tempRegNetwork,
-                                airtimeBalance: parseFloat(tempRegAirtime) || 0,
-                                validationsCount: 0,
-                                revenueGenerated: 0,
-                                lastActive: 'Just now',
-                                status: 'online'
-                              };
-                              setActiveUsers(prev => [newUser, ...prev]);
-                              setSelectedPhoneForValidation(tempRegPhone);
-                              setTempRegName('');
-                              setTempRegPhone('');
-                              setTempRegAirtime('1500');
-                              setIsRegisteringPhoneForVal(false);
-                            }}
-                            className="w-full bg-m2-600 py-1.5 rounded-lg text-[10px] font-bold text-white uppercase"
+                            onClick={() => setIsRegisteringPhoneForVal(!isRegisteringPhoneForVal)}
+                            className="text-[9px] text-m2-400 hover:underline font-bold"
                           >
-                            Add & Select Phone Node
+                            {isRegisteringPhoneForVal ? "Select Existing" : "+ Register New Phone"}
                           </button>
                         </div>
-                      ) : (
-                        <div className="relative">
-                          <select
-                            value={selectedPhoneForValidation}
-                            onChange={(e) => setSelectedPhoneForValidation(e.target.value)}
-                            disabled={isValidationRunning}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-cyan-500 font-mono"
-                          >
-                            {activeUsers.map(usr => (
-                              <option key={usr.phone} value={usr.phone}>
-                                {usr.name} • {usr.phone} ({usr.network}) — Bal: ₦{usr.airtimeBalance}
-                              </option>
-                            ))}
-                          </select>
-                          {/* Low balance warning */}
-                          {(() => {
-                            const selectedUserObj = activeUsers.find(u => u.phone === selectedPhoneForValidation);
-                            if (selectedUserObj && selectedUserObj.airtimeBalance < validationFee) {
-                              return (
-                                <div className="text-[10px] text-rose-400 font-medium mt-1 flex items-center gap-1">
-                                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                  <span>Insufficient airtime balance! Standard fee is ₦{validationFee}. Please top up on the main screen first.</span>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                      )}
-                    </div>
+
+                        {isRegisteringPhoneForVal ? (
+                          <div className="border border-slate-900 bg-slate-900/40 p-3 rounded-xl space-y-2.5 text-left">
+                            <span className="block text-[9px] font-bold text-slate-400 uppercase">New Charging Phone Node</span>
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="text"
+                                placeholder="Name"
+                                value={tempRegName}
+                                onChange={(e) => setTempRegName(e.target.value)}
+                                className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Phone"
+                                value={tempRegPhone}
+                                onChange={(e) => setTempRegPhone(e.target.value)}
+                                className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white font-mono"
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <select
+                                value={tempRegNetwork}
+                                onChange={(e) => setTempRegNetwork(e.target.value as any)}
+                                className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white"
+                              >
+                                <option value="MTN">MTN</option>
+                                <option value="Airtel">Airtel</option>
+                                <option value="Glo">Glo</option>
+                                <option value="9mobile">9mobile</option>
+                              </select>
+                              <input
+                                type="number"
+                                placeholder="Airtime ₦"
+                                value={tempRegAirtime}
+                                onChange={(e) => setTempRegAirtime(e.target.value)}
+                                className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white font-mono"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                if (!tempRegPhone || !tempRegName) return;
+                                const newUser: ActiveUser = {
+                                  id: `USR-${Math.floor(700 + Math.random() * 300)}`,
+                                  name: tempRegName,
+                                  phone: tempRegPhone,
+                                  network: tempRegNetwork,
+                                  airtimeBalance: parseFloat(tempRegAirtime) || 0,
+                                  validationsCount: 0,
+                                  revenueGenerated: 0,
+                                  lastActive: 'Just now',
+                                  status: 'online'
+                                };
+                                setActiveUsers(prev => [newUser, ...prev]);
+                                setSelectedPhoneForValidation(tempRegPhone);
+                                setTempRegName('');
+                                setTempRegPhone('');
+                                setTempRegAirtime('1500');
+                                setIsRegisteringPhoneForVal(false);
+                              }}
+                              className="w-full bg-m2-600 py-1.5 rounded-lg text-[10px] font-bold text-white uppercase cursor-pointer"
+                            >
+                              Add & Select Phone Node
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <select
+                              value={selectedPhoneForValidation}
+                              onChange={(e) => setSelectedPhoneForValidation(e.target.value)}
+                              disabled={isValidationRunning}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-cyan-500 font-mono cursor-pointer"
+                            >
+                              {activeUsers.map(usr => (
+                                <option key={usr.phone} value={usr.phone}>
+                                  {usr.name} • {usr.phone} ({usr.network}) — Bal: ₦{usr.airtimeBalance}
+                                </option>
+                              ))}
+                            </select>
+                            {/* Low balance warning */}
+                            {(() => {
+                              const selectedUserObj = activeUsers.find(u => u.phone === selectedPhoneForValidation);
+                              if (selectedUserObj && selectedUserObj.airtimeBalance < validationFee) {
+                                return (
+                                  <div className="text-[10px] text-rose-400 font-medium mt-1 flex items-center gap-1 text-left">
+                                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Insufficient airtime balance! Standard fee is ₦{validationFee}. Please top up on the main screen first.</span>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="space-y-1">
                       <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-500">
@@ -1631,10 +2278,10 @@ export default function DashboardScreen({ user, onLogout, onUserUpdate, theme, s
                       <button
                         type="button"
                         onClick={startValidationSimulation}
-                        disabled={!validationInputValue || (activeUsers.find(u => u.phone === selectedPhoneForValidation)?.airtimeBalance || 0) < validationFee}
+                        disabled={!validationInputValue || (user.role !== 'user' && (activeUsers.find(u => u.phone === selectedPhoneForValidation)?.airtimeBalance || 0) < validationFee)}
                         className={`w-full py-3.5 font-bold text-sm tracking-wider text-white bg-gradient-to-r ${currentThemeObj.buttonBg} rounded-xl shadow-lg ${currentThemeObj.shadowClass} disabled:opacity-40 transition-all cursor-pointer`}
                       >
-                        INITIATE VERIFICATION (DEBIT ₦{validationFee})
+                        {user.role === 'user' ? "INITIATE SECURE VERIFICATION (0 TAX EXEMPT)" : `INITIATE VERIFICATION (DEBIT ₦${validationFee})`}
                       </button>
                     ) : (
                       <div className="space-y-3 pt-2">

@@ -7,6 +7,7 @@ export interface User {
   department: string;
   company: string;
   joinDate: string;
+  phone?: string;
 }
 
 export type Theme = 'cyber-slate' | 'solar-flare' | 'emerald-vault' | 'deep-space';

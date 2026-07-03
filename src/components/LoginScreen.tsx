@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Lock, User, KeyRound, AlertCircle, CheckCircle, Github, Linkedin, Facebook, Fingerprint, Shield, ShieldCheck, Check, Paintbrush } from 'lucide-react';
+import { Mail, Lock, User, KeyRound, AlertCircle, CheckCircle, Github, Linkedin, Facebook, Fingerprint, Shield, ShieldCheck, Check, Paintbrush, Smartphone, Phone } from 'lucide-react';
 import { User as UserType, LoginMode, Theme } from '../types';
 
 interface LoginScreenProps {
@@ -95,35 +95,59 @@ const GoogleIcon = () => (
 );
 
 export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginScreenProps) {
-  // Prepopulated users matching the Flutter code
-  const [users, setUsers] = useState<Record<string, string>>({
-    'dribbble@gmail.com': '12345',
-    'hunter@gmail.com': 'hunter',
+  // Prepopulated users matching the Flutter code with localStorage persistence
+  const [users, setUsers] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('m2_users');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      'dribbble@gmail.com': '12345',
+      'hunter@gmail.com': 'hunter',
+    };
   });
 
   // Prepopulated user profile details for dashboard experience
-  const [userProfiles, setUserProfiles] = useState<Record<string, Partial<UserType>>>({
-    'dribbble@gmail.com': {
-      name: 'Dribbble Designer',
-      role: 'Principal UI/UX Specialist',
-      department: 'Creative Innovation Lab',
-      company: 'M2-GLOBAL-SERVICESS',
-    },
-    'hunter@gmail.com': {
-      name: 'Hunter Sterling',
-      role: 'Lead Cybersecurity Threat Analyst',
-      department: 'Enterprise Security Division',
-      company: 'M2-GLOBAL-SERVICESS',
-    },
+  const [userProfiles, setUserProfiles] = useState<Record<string, Partial<UserType>>>(() => {
+    const saved = localStorage.getItem('m2_user_profiles');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      'dribbble@gmail.com': {
+        name: 'Dribbble Designer',
+        role: 'admin',
+        department: 'Creative Innovation Lab',
+        company: 'M2-GLOBAL-SERVICESS',
+      },
+      'hunter@gmail.com': {
+        name: 'Hunter Sterling',
+        role: 'admin',
+        department: 'Enterprise Security Division',
+        company: 'M2-GLOBAL-SERVICESS',
+      },
+    };
   });
 
+  // Persist state updates to localStorage
+  useEffect(() => {
+    localStorage.setItem('m2_users', JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem('m2_user_profiles', JSON.stringify(userProfiles));
+  }, [userProfiles]);
+
   const [mode, setMode] = useState<LoginMode>('login');
+  const [portalMode, setPortalMode] = useState<'user' | 'admin'>('user');
   
   // Form inputs
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [adminKey, setAdminKey] = useState('');
 
   // Status and feedback
   const [isLoading, setIsLoading] = useState(false);
@@ -163,11 +187,11 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
     return () => clearInterval(timer);
   }, []);
 
-  // Clear errors when changing modes
+  // Clear errors when changing modes or portals
   useEffect(() => {
     setError(null);
     setSuccessMessage(null);
-  }, [mode]);
+  }, [mode, portalMode]);
 
   // Auth delay matching flutter_login duration (2250ms)
   const AUTH_DELAY = 1500;
@@ -223,38 +247,64 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
       return;
     }
 
+    if (portalMode === 'admin') {
+      if (!adminKey) {
+        setError('Please enter the Admin Key to gain secure access.');
+        return;
+      }
+      if (adminKey.trim() !== 'M2-ADMIN-001') {
+        setError('Unauthorized Access: Invalid Admin Key. Access logs have been captured.');
+        return;
+      }
+    }
+
     setIsLoading(true);
     setLoadingMessage('Securing tunnel & validating credentials...');
 
     setTimeout(() => {
-      const storedPassword = users[email.toLowerCase().trim()];
+      const emailLower = email.toLowerCase().trim();
+      const storedPassword = users[emailLower];
       if (!storedPassword) {
-        setError('User not exists');
+        setError('User does not exist in our corporate registers.');
         setIsLoading(false);
         return;
       }
 
       if (storedPassword !== password) {
-        setError('Password does not match');
+        setError('Password verification failed. Match signature does not align.');
         setIsLoading(false);
         return;
       }
 
       // Successful first-stage login, now trigger Framer Motion biometric verification
-      const profile = userProfiles[email.toLowerCase().trim()] || {
+      const profile = userProfiles[emailLower] || {
         name: email.split('@')[0].toUpperCase(),
-        role: 'Corporate Officer',
+        role: 'user',
         department: 'General Operations',
         company: 'M2-GLOBAL-SERVICESS',
       };
 
+      // Double check roles
+      if (portalMode === 'admin' && profile.role !== 'admin') {
+        setError('Access Denied: This account is registered as a user and does not have administrator privileges.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (portalMode === 'user' && profile.role === 'admin') {
+        setError('Notice: This is an Admin account. Please log in using the Admin Portal.');
+        setIsLoading(false);
+        return;
+      }
+
       const completeUser: UserType = {
-        email: email.toLowerCase().trim(),
+        email: emailLower,
         name: profile.name || 'M2-GLOBAL-SERVICESS Employee',
-        role: profile.role || 'Associate',
+        role: profile.role || 'user',
         department: profile.department || 'General Division',
         company: 'M2-GLOBAL-SERVICESS',
         joinDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        phone: profile.phone || '',
       };
 
       setIsLoading(false);
@@ -272,6 +322,10 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
     }
     if (!name) {
       setError('Please enter your full name.');
+      return;
+    }
+    if (portalMode === 'user' && !phone) {
+      setError('Phone number is required for user registry.');
       return;
     }
     if (!password) {
@@ -309,9 +363,10 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
         ...prev,
         [emailLower]: {
           name: name,
-          role: 'Newly Appointed Associate',
-          department: 'Executive Development Branch',
-          company: 'M2-GLOBAL-SERVICESS'
+          role: 'user',
+          department: 'Client Validation Node',
+          company: 'M2-GLOBAL-SERVICESS',
+          phone: phone,
         }
       }));
 
@@ -322,6 +377,7 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
         setMode('login');
         setPassword('');
         setConfirmPassword('');
+        setPhone('');
       }, 1500);
     }, AUTH_DELAY);
   };
@@ -462,9 +518,9 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
             </div>
             
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.1] text-white font-display tracking-tight">
-              M2-VALIDATION-<br/>
+              M2 IDENTITY<br/>
               <span className={`text-transparent bg-clip-text bg-gradient-to-r ${currentThemeObj.primaryColor}`}>
-                HUP-CENTER.
+                VALIDATION CENTER.
               </span>
             </h1>
             
@@ -648,13 +704,53 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
                       </motion.div>
                     )}
 
+                    {/* Portal Mode Selector (Normal User vs. Admin) */}
+                    <div className="flex rounded-xl bg-slate-900/60 p-1 border border-white/5 mb-6">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPortalMode('user');
+                          setMode('login');
+                        }}
+                        className={`flex-1 py-2 text-center text-xs font-bold font-mono tracking-wider rounded-lg transition-all cursor-pointer ${
+                          portalMode === 'user'
+                            ? `bg-gradient-to-r ${currentThemeObj.primaryColor} text-white shadow`
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        USER GATEWAY
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPortalMode('admin');
+                          setMode('login');
+                        }}
+                        className={`flex-1 py-2 text-center text-xs font-bold font-mono tracking-wider rounded-lg transition-all cursor-pointer ${
+                          portalMode === 'admin'
+                            ? `bg-gradient-to-r ${currentThemeObj.primaryColor} text-white shadow`
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        ADMIN PORTAL
+                      </button>
+                    </div>
+
                     {/* Dynamic Header Titles based on mode */}
-                    <div className="mb-8">
-                      <h2 className="text-2xl font-bold text-white font-display">
-                        {mode === 'login' ? 'Account Login' : mode === 'signup' ? 'Create Corporate Identity' : 'Identity Override'}
+                    <div className="mb-6">
+                      <h2 className="text-xl font-bold text-white font-display">
+                        {portalMode === 'admin'
+                          ? 'Admin Secure Terminal'
+                          : mode === 'login'
+                          ? 'User Portal Login'
+                          : 'Create User Identity'}
                       </h2>
-                      <p className="text-xs text-slate-500 mt-1">
-                        {mode === 'login' ? 'Enter your credentials to connect.' : mode === 'signup' ? 'Declare details on corporate ledger.' : 'Initiate secure password override.'}
+                      <p className="text-xs text-slate-400 mt-1">
+                        {portalMode === 'admin'
+                          ? 'Verification key required for administrative override.'
+                          : mode === 'login'
+                          ? 'Enter your phone-registered user credentials.'
+                          : 'Register with your active Phone Number for tax-free validation.'}
                       </p>
                     </div>
 
@@ -674,14 +770,42 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
                               required
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
-                              placeholder="dribbble@gmail.com"
+                              placeholder={portalMode === 'admin' ? 'hunter@gmail.com' : 'user@gmail.com'}
                               className={`w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:${currentThemeObj.borderClass} focus:ring-1 focus:ring-white/10 transition-all placeholder:text-slate-700`}
                             />
                           </div>
                           <p className="text-[10px] text-slate-500 mt-1 px-1">
-                            Presets: <span className={`font-mono ${currentThemeObj.accentClass}/80`}>dribbble@gmail.com</span> or <span className={`font-mono ${currentThemeObj.accentClass}/80`}>hunter@gmail.com</span>
+                            Presets: <span className={`font-mono ${currentThemeObj.accentClass}/80`}>
+                              {portalMode === 'admin' ? 'hunter@gmail.com / dribbble@gmail.com' : 'Register a new account'}
+                            </span>
                           </p>
                         </div>
+
+                        {/* Admin Secret Key Input */}
+                        {portalMode === 'admin' && (
+                          <div className="space-y-2">
+                            <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-rose-400 ml-1 flex items-center gap-1.5 font-mono">
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              Secure Admin Key
+                            </label>
+                            <div className="relative">
+                              <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-rose-500/50">
+                                <KeyRound className="w-4 h-4" />
+                              </span>
+                              <input
+                                type="password"
+                                required
+                                value={adminKey}
+                                onChange={(e) => setAdminKey(e.target.value)}
+                                placeholder="Enter Admin Secret Key"
+                                className={`w-full bg-slate-900/40 border border-rose-500/20 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:border-rose-500 transition-all placeholder:text-rose-950`}
+                              />
+                            </div>
+                            <p className="text-[9px] text-slate-500 font-mono mt-1 px-1">
+                              Required: <span className="text-rose-400 font-bold">M2-ADMIN-001</span>
+                            </p>
+                          </div>
+                        )}
 
                         <div className="space-y-2">
                           <div className="flex justify-between items-end px-1">
@@ -709,18 +833,20 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
                               className={`w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:${currentThemeObj.borderClass} focus:ring-1 focus:ring-white/10 transition-all placeholder:text-slate-700`}
                             />
                           </div>
-                          <p className="text-[10px] text-slate-500 mt-1 px-1">
-                            Passwords: <span className={`font-mono ${currentThemeObj.accentClass}/80`}>12345</span> / <span className={`font-mono ${currentThemeObj.accentClass}/80`}>hunter</span>
-                          </p>
+                          {portalMode === 'admin' && (
+                            <p className="text-[10px] text-slate-500 mt-1 px-1">
+                              Passwords: <span className={`font-mono ${currentThemeObj.accentClass}/80`}>hunter</span> / <span className={`font-mono ${currentThemeObj.accentClass}/80`}>12345</span>
+                            </p>
+                          )}
                         </div>
 
                         {/* Fingerprint bypass indicators next to forms */}
                         <div className="pt-2 flex flex-col gap-2">
                           <button
                             type="submit"
-                            className={`w-full bg-gradient-to-r ${currentThemeObj.buttonBg} text-white font-bold py-3.5 rounded-xl shadow-lg ${currentThemeObj.shadowClass} transition-all transform active:scale-[0.98]`}
+                            className={`w-full bg-gradient-to-r ${currentThemeObj.buttonBg} text-white font-bold py-3.5 rounded-xl shadow-lg ${currentThemeObj.shadowClass} transition-all transform active:scale-[0.98] cursor-pointer`}
                           >
-                            Access Secure Portal
+                            {portalMode === 'admin' ? 'Verify Admin Access' : 'Connect User Terminal'}
                           </button>
 
                           {/* Quick Biometric Bypass Selector */}
@@ -740,16 +866,18 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
                           </div>
                         </div>
 
-                        <div className="flex justify-center text-xs mt-4">
-                          <span className="text-slate-400">New to M2-GLOBAL-SERVICESS?</span>
-                          <button
-                            type="button"
-                            onClick={() => setMode('signup')}
-                            className={`ml-1.5 font-bold ${currentThemeObj.accentClass} hover:opacity-80 transition-colors`}
-                          >
-                            Create Account
-                          </button>
-                        </div>
+                        {portalMode === 'user' && (
+                          <div className="flex justify-center text-xs mt-4">
+                            <span className="text-slate-400">New to M2-GLOBAL-SERVICESS?</span>
+                            <button
+                              type="button"
+                              onClick={() => setMode('signup')}
+                              className={`ml-1.5 font-bold ${currentThemeObj.accentClass} hover:opacity-80 transition-colors cursor-pointer`}
+                            >
+                              Create Account
+                            </button>
+                          </div>
+                        )}
                       </form>
                     )}
 
@@ -758,7 +886,7 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
                       <form onSubmit={handleSignup} className="space-y-4">
                         <div className="space-y-2">
                           <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-500 ml-1">
-                            Full Corporate Name
+                            Full Name
                           </label>
                           <div className="relative">
                             <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-600">
@@ -792,6 +920,30 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
                               className={`w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:${currentThemeObj.borderClass} transition-all placeholder:text-slate-700`}
                             />
                           </div>
+                        </div>
+
+                        {/* Phone Number Field (FOR USER EXCLUSIVELY) */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-500 ml-1 flex items-center gap-1.5 font-sans">
+                            <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+                            Phone Number (Zero-Tax Validation)
+                          </label>
+                          <div className="relative">
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-600">
+                              <Phone className="w-4 h-4" />
+                            </span>
+                            <input
+                              type="tel"
+                              required
+                              value={phone}
+                              onChange={(e) => setPhone(e.target.value)}
+                              placeholder="e.g. +2348012345678"
+                              className={`w-full bg-slate-900/40 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 outline-none focus:${currentThemeObj.borderClass} transition-all placeholder:text-slate-700`}
+                            />
+                          </div>
+                          <p className="text-[9px] text-slate-500 font-mono mt-1 px-1">
+                            Validations using this phone number will be 100% tax-free!
+                          </p>
                         </div>
 
                         <div className="space-y-2">
@@ -834,7 +986,7 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
 
                         <button
                           type="submit"
-                          className={`w-full mt-2 bg-gradient-to-r ${currentThemeObj.buttonBg} text-white font-bold py-3.5 rounded-xl shadow-lg ${currentThemeObj.shadowClass} transition-all transform active:scale-[0.98]`}
+                          className={`w-full mt-2 bg-gradient-to-r ${currentThemeObj.buttonBg} text-white font-bold py-3.5 rounded-xl shadow-lg ${currentThemeObj.shadowClass} transition-all transform active:scale-[0.98] cursor-pointer`}
                         >
                           Register Account
                         </button>
@@ -844,7 +996,7 @@ export default function LoginScreen({ theme, setTheme, onLoginSuccess }: LoginSc
                           <button
                             type="button"
                             onClick={() => setMode('login')}
-                            className={`ml-1.5 font-bold ${currentThemeObj.accentClass} hover:opacity-80 transition-colors`}
+                            className={`ml-1.5 font-bold ${currentThemeObj.accentClass} hover:opacity-80 transition-colors cursor-pointer`}
                           >
                             Sign In
                           </button>
